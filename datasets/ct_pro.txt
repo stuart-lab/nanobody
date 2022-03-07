@@ -1,0 +1,6 @@
+https://zenodo.org/record/5504061/files/H3K27ac.rds
+https://zenodo.org/record/5504061/files/H3K27ac_fragments.tsv.gz
+https://zenodo.org/record/5504061/files/H3K27ac_fragments.tsv.gz.tbi
+https://zenodo.org/record/5504061/files/H3K27me3.rds
+https://zenodo.org/record/5504061/files/H3K27me3_fragments.tsv.gz
+https://zenodo.org/record/5504061/files/H3K27me3_fragments.tsv.gz.tbi

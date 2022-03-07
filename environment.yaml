@@ -1,0 +1,35 @@
+name: ntt
+channels:
+    - conda-forge
+    - bioconda
+dependencies:
+    - snakemake
+    - r-signac
+    - r-seurat
+    - r-hdf5r
+    - r-ggtern
+    - r-rcolorbrewer
+    - r-dplyr
+    - salmon
+    - biopython
+    - pysam
+    - sinto>=0.8.0
+    - awscli
+    - chromap>=0.1.6
+    - bwa-mem2
+    - deeptools
+    - bedtools
+    - htslib
+    - macs2
+    - ucsc-bedgraphtobigwig
+    - bioconductor-ensdb.hsapiens.v86
+    - bioconductor-bsgenome.hsapiens.ucsc.hg38
+    - bioconductor-biovizbase
+    - bioconductor-fishpond
+    - bioconductor-tximport
+    - r-recommended
+    - r-curl
+    - hdf5
+    - bcftools
+    - cutadapt
+    - pigz

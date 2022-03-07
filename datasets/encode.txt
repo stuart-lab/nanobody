@@ -1,0 +1,32 @@
+https://www.encodeproject.org/files/ENCFF569IPX/@@download/ENCFF569IPX.bigWig# k27me3 NK cell FC hg38
+https://www.encodeproject.org/files/ENCFF138FVQ/@@download/ENCFF138FVQ.bed.gz#
+https://www.encodeproject.org/files/ENCFF293ETP/@@download/ENCFF293ETP.bigWig# k27ac NK cell FC hg38
+https://www.encodeproject.org/files/ENCFF240LSH/@@download/ENCFF240LSH.bed.gz
+https://www.encodeproject.org/files/ENCFF842JLZ/@@download/ENCFF842JLZ.bigWig# k27me3 CD8 alpha-beta memory T cell FC, 2 replicates hg38
+https://www.encodeproject.org/files/ENCFF720AKK/@@download/ENCFF720AKK.bed.gz
+https://www.encodeproject.org/files/ENCFF611GRL/@@download/ENCFF611GRL.bigWig# k27ac CD8-positive, alpha-beta memory T cell FC hg38
+https://www.encodeproject.org/files/ENCFF614FJO/@@download/ENCFF614FJO.bed.gz
+https://www.encodeproject.org/files/ENCFF811VAX/@@download/ENCFF811VAX.bigWig# k27me3 CD4-positive, alpha-beta T cell FC 
+https://www.encodeproject.org/files/ENCFF407VKP/@@download/ENCFF407VKP.bed.gz
+https://www.encodeproject.org/files/ENCFF181OXO/@@download/ENCFF181OXO.bigWig# k27ac CD4-positive, alpha-beta T cell
+https://www.encodeproject.org/files/ENCFF449ITG/@@download/ENCFF449ITG.bed.gz
+https://www.encodeproject.org/files/ENCFF499VWN/@@download/ENCFF499VWN.bigWig# k27me3 CD8-positive, alpha-beta T cell FC hg38
+https://www.encodeproject.org/files/ENCFF588JEN/@@download/ENCFF588JEN.bed.gz
+https://www.encodeproject.org/files/ENCFF526VJO/@@download/ENCFF526VJO.bigWig# k27ac CD8-positive, alpha-beta T cell FC hg38
+https://www.encodeproject.org/files/ENCFF321NYQ/@@download/ENCFF321NYQ.bed.gz
+https://www.encodeproject.org/files/ENCFF777EGG/@@download/ENCFF777EGG.bigWig# k27me3 CD14-positive monocyte FC hg38
+https://www.encodeproject.org/files/ENCFF570DGJ/@@download/ENCFF570DGJ.bed.gz
+https://www.encodeproject.org/files/ENCFF601NLG/@@download/ENCFF601NLG.bigWig# k27ac CD14-positive monocyte FC hg38
+https://www.encodeproject.org/files/ENCFF544QYY/@@download/ENCFF544QYY.bed.gz
+https://www.encodeproject.org/files/ENCFF046VLL/@@download/ENCFF046VLL.bigWig# k27me3 B cell FC hg38
+https://www.encodeproject.org/files/ENCFF071JFL/@@download/ENCFF071JFL.bed.gz
+https://www.encodeproject.org/files/ENCFF951ZBV/@@download/ENCFF951ZBV.bigWig# k27ac B cell FC hg38
+https://www.encodeproject.org/files/ENCFF059WXH/@@download/ENCFF059WXH.bed.gz
+https://www.encodeproject.org/files/ENCFF085YMB/@@download/ENCFF085YMB.bigWig# k27me3 CMP CD34+ FC hg38
+https://www.encodeproject.org/files/ENCFF276IMO/@@download/ENCFF276IMO.bed.gz
+https://www.encodeproject.org/files/ENCFF064JOI/@@download/ENCFF064JOI.bigWig# k27ac CMP CD34+ FC hg38
+https://www.encodeproject.org/files/ENCFF412NPA/@@download/ENCFF412NPA.bed.gz
+https://www.encodeproject.org/files/ENCFF291LVP/@@download/ENCFF291LVP.bed.gz# bulk PBMC peaks H3K27me3 hg38
+https://www.encodeproject.org/files/ENCFF598EGZ/@@download/ENCFF598EGZ.bigWig
+https://www.encodeproject.org/files/ENCFF832RWT/@@download/ENCFF832RWT.bed.gz# bulk PBMC peaks H3K27ac hg38
+https://www.encodeproject.org/files/ENCFF518PSI/@@download/ENCFF518PSI.bigWig
