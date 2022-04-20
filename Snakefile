@@ -22,22 +22,14 @@ rule get_chr_size:
 rule get_hg38:
     output:
         "genome/hg38/GCA_000001405.15_GRCh38_no_alt_analysis_set.fna.gz.0123",
-        "genome/hg38/GCA_000001405.15_GRCh38_no_alt_analysis_set.fna.chromap",
-        "genome/hg38/GCA_000001405.15_GRCh38_no_alt_analysis_set.fna.gz",
-        "genome/hg38/genome.fa"
+        "genome/hg38/GCA_000001405.15_GRCh38_no_alt_analysis_set.fna.gz"
     threads: 1
     message: "Download hg38 genome"
     shell:
         """
         cd genome/hg38
         aws s3 sync s3://stuart-genomes/hg38_analysis/bwa-mem2/ .
-        aws s3 cp s3://stuart-genomes/hg38_analysis/chromap/GCA_000001405.15_GRCh38_no_alt_analysis_set.fna.chromap .
         aws s3 cp s3://stuart-genomes/hg38_analysis/GCA_000001405.15_GRCh38_no_alt_analysis_set.fna.gz .
-        
-        # decompress and index fasta for vartrix
-        gzip -dc GCA_000001405.15_GRCh38_no_alt_analysis_set.fna.gz > genome.fa
-        samtools faidx genome.fa
-        picard CreateSequenceDictionary -R genome.fa -O genome.dict
         """
 
 rule get_ct_pro:
@@ -142,7 +134,7 @@ rule map_cellculture_sc:
     output:
         frags="data/HEK_K562_sc/sinto/{mark}.bed.gz",
         bam="data/HEK_K562_sc/mapped/{mark}.bam"
-    threads: 18
+    threads: 24
     shell:
         """
         bwa-mem2 mem {input.genome} \
@@ -170,25 +162,46 @@ rule map_cellculture_bulk:
     input:
         r1="data/HEK_K562_bulk/{cell}-{plex}-{mark}_1.fastq.gz",
         r2="data/HEK_K562_bulk/{cell}-{plex}-{mark}_2.fastq.gz",
-        index="genome/hg38/GCA_000001405.15_GRCh38_no_alt_analysis_set.fna.chromap",
         genome="genome/hg38/GCA_000001405.15_GRCh38_no_alt_analysis_set.fna.gz"
-    output: "data/HEK_K562_bulk/mapped/{cell}-{plex}-{mark}.bed.gz"
-    threads: 6
+    output: "data/HEK_K562_bulk/mapped/{cell}-{plex}-{mark}.bam"
+    threads: 24
     message: "Mapping {input.r1}"
     shell:
         """
-        chromap --preset atac \
-          -x {input.index} \
-          -r {input.genome} \
-          -1 {input.r1} \
-          -2 {input.r2} \
-          -o data/HEK_K562_bulk/mapped/{wildcards.cell}-{wildcards.plex}-{wildcards.mark}.tmp \
-          -t {threads}
-        sort -k1,1 -k2,2n data/HEK_K562_bulk/mapped/{wildcards.cell}-{wildcards.plex}-{wildcards.mark}.tmp \
+        bwa-mem2 mem {input.genome} \
+            -t {threads} \
+            {input.r1} \
+            {input.r2} \
+            | samtools sort -@ {threads} -O bam - \
+            > data/HEK_K562_bulk/mapped/{wildcards.cell}-{wildcards.plex}-{wildcards.mark}.bam
+        samtools index data/HEK_K562_bulk/mapped/{wildcards.cell}-{wildcards.plex}-{wildcards.mark}.bam
+        """
+        
+rule create_bulk_cellculture_bigwig:
+    input: "data/HEK_K562_bulk/mapped/{cell}-{plex}-{mark}.bam"
+    output: "data/HEK_K562_bulk/mapped/{cell}-{plex}-{mark}.bw"
+    threads: 6
+    shell:
+        """
+        bamCoverage -b {input} -o {output} -p {threads} --normalizeUsing BPM
+        """
+
+rule create_bulk_cellculture_fragments:
+    input:"data/HEK_K562_bulk/mapped/{cell}-{plex}-{mark}.bam"
+    output: "data/HEK_K562_bulk/mapped/{cell}-{plex}-{mark}.bed.gz"
+    threads: 6
+    shell:
+        """
+        sinto fragments -p {threads} \
+          -b {input} \
+          --barcode_regex "[^:]*" \
+          -f data/HEK_K562_bulk/mapped/{wildcards.cell}-{wildcards.plex}-{wildcards.mark}.frag
+        
+        sort -k1,1 -k2,2n data/HEK_K562_bulk/mapped/{wildcards.cell}-{wildcards.plex}-{wildcards.mark}.frag \
           > data/HEK_K562_bulk/mapped/{wildcards.cell}-{wildcards.plex}-{wildcards.mark}.bed
-        bgzip -@ {threads} data/HEK_K562_bulk/mapped/{wildcards.cell}-{wildcards.plex}-{wildcards.mark}.bed
+        bgzip data/HEK_K562_bulk/mapped/{wildcards.cell}-{wildcards.plex}-{wildcards.mark}.bed
         tabix -p bed {output}
-        rm data/HEK_K562_bulk/mapped/{wildcards.cell}-{wildcards.plex}-{wildcards.mark}.tmp
+        rm data/HEK_K562_bulk/mapped/{wildcards.cell}-{wildcards.plex}-{wildcards.mark}.frag
         """
 
 rule map_pbmc_bulk:
@@ -201,87 +214,76 @@ rule map_pbmc_bulk:
         me3_r2_plex="data/pbmc_bulk/PBMCs-plex-MmK27me3_S3_ME_L001_R2_001.fastq.gz",
         ac_r1_plex="data/pbmc_bulk/PBMCs-plex-OcK27Ac_S4_ME_L001_R1_001.fastq.gz",
         ac_r2_plex="data/pbmc_bulk/PBMCs-plex-OcK27Ac_S4_ME_L001_R2_001.fastq.gz",
-        index="genome/hg38/GCA_000001405.15_GRCh38_no_alt_analysis_set.fna.chromap",
         genome="genome/hg38/GCA_000001405.15_GRCh38_no_alt_analysis_set.fna.gz"
     output:
-        me3_mono="data/pbmc_bulk/mapped/mono/me3.bed.gz",
-        me3_plex="data/pbmc_bulk/mapped/plex/me3.bed.gz",
-        ac_mono="data/pbmc_bulk/mapped/mono/ac.bed.gz",
-        ac_plex="data/pbmc_bulk/mapped/plex/ac.bed.gz"
-    threads: 12
+        me3_mono="data/pbmc_bulk/mapped/mono/me3.bam",
+        me3_plex="data/pbmc_bulk/mapped/plex/me3.bam",
+        ac_mono="data/pbmc_bulk/mapped/mono/ac.bam",
+        ac_plex="data/pbmc_bulk/mapped/plex/ac.bam"
+    threads: 24
     message: "Mapping PBMC bulk NTT-seq"
     shell:
         """
         # me3
-        chromap --preset atac \
-          -x {input.index} \
-          -r {input.genome} \
-          -1 {input.me3_r1_mono} \
-          -2 {input.me3_r2_mono} \
-          -o data/pbmc_bulk/mapped/mono/me3.tmp \
-          -t {threads}
+        bwa-mem2 mem {input.genome} \
+            -t {threads} \
+            {input.me3_r1_mono} \
+            {input.me3_r2_mono} \
+            | samtools sort -@ {threads} -O bam - \
+            > data/pbmc_bulk/mapped/mono/me3.bam
+        samtools index data/pbmc_bulk/mapped/mono/me3.bam
 
-        sort -k1,1 -k2,2n data/pbmc_bulk/mapped/mono/me3.tmp \
-          > data/pbmc_bulk/mapped/mono/me3.bed
-        bgzip -@ {threads} data/pbmc_bulk/mapped/mono/me3.bed
-        tabix -p bed {output.me3_mono}
-        rm data/pbmc_bulk/mapped/mono/me3.tmp
+        bwa-mem2 mem {input.genome} \
+            -t {threads} \
+            {input.me3_r1_plex} \
+            {input.me3_r2_plex} \
+            | samtools sort -@ {threads} -O bam - \
+            > data/pbmc_bulk/mapped/plex/me3.bam
+        samtools index data/pbmc_bulk/mapped/plex/me3.bam
         
-        chromap --preset atac \
-          -x {input.index} \
-          -r {input.genome} \
-          -1 {input.me3_r1_plex} \
-          -2 {input.me3_r2_plex} \
-          -o data/pbmc_bulk/mapped/plex/me3.tmp \
-          -t {threads}
-
-        sort -k1,1 -k2,2n data/pbmc_bulk/mapped/plex/me3.tmp \
-          > data/pbmc_bulk/mapped/plex/me3.bed
-        bgzip -@ {threads} data/pbmc_bulk/mapped/plex/me3.bed
-        tabix -p bed {output.me3_plex}
-        rm data/pbmc_bulk/mapped/plex/me3.tmp
+        # ac
+        bwa-mem2 mem {input.genome} \
+            -t {threads} \
+            {input.ac_r1_mono} \
+            {input.ac_r2_mono} \
+            | samtools sort -@ {threads} -O bam - \
+            > data/pbmc_bulk/mapped/mono/ac.bam
+        samtools index data/pbmc_bulk/mapped/mono/ac.bam
         
-        chromap --preset atac \
-          -x {input.index} \
-          -r {input.genome} \
-          -1 {input.ac_r1_mono} \
-          -2 {input.ac_r2_mono} \
-          -o data/pbmc_bulk/mapped/mono/ac.tmp \
-          -t {threads}
-
-        sort -k1,1 -k2,2n data/pbmc_bulk/mapped/mono/ac.tmp \
-          > data/pbmc_bulk/mapped/mono/ac.bed
-        bgzip -@ {threads} data/pbmc_bulk/mapped/mono/ac.bed
-        tabix -p bed {output.ac_mono}
-        rm data/pbmc_bulk/mapped/mono/ac.tmp
-        
-        chromap --preset atac \
-          -x {input.index} \
-          -r {input.genome} \
-          -1 {input.ac_r1_plex} \
-          -2 {input.ac_r2_plex} \
-          -o data/pbmc_bulk/mapped/plex/ac.tmp \
-          -t {threads}
-
-        sort -k1,1 -k2,2n data/pbmc_bulk/mapped/plex/ac.tmp \
-          > data/pbmc_bulk/mapped/plex/ac.bed
-        bgzip -@ {threads} data/pbmc_bulk/mapped/plex/ac.bed
-        tabix -p bed {output.ac_plex}
-        rm data/pbmc_bulk/mapped/plex/ac.tmp
+        bwa-mem2 mem {input.genome} \
+            -t {threads} \
+            {input.ac_r1_plex} \
+            {input.ac_r2_plex} \
+            | samtools sort -@ {threads} -O bam - \
+            > data/pbmc_bulk/mapped/plex/ac.bam
+        samtools index data/pbmc_bulk/mapped/plex/ac.bam
         """
 
 rule create_bulk_pbmc_bigwig:
-    input:
-        fragments="data/pbmc_bulk/mapped/{plex}/{mark}.bed.gz",
-        chrom="data/hg38.chrom.sizes"
-    output:
-        bg="data/pbmc_bulk/mapped/{plex}/{mark}.bg",
-        bw="data/pbmc_bulk/mapped/{plex}/{mark}.bw"
-    threads: 1
+    input: "data/pbmc_bulk/mapped/{plex}/{mark}.bam"
+    output: "data/pbmc_bulk/mapped/{plex}/{mark}.bw"
+    threads: 6
     shell:
         """
-        bedtools genomecov -i {input.fragments} -g {input.chrom} -bg > {output.bg}
-        bedGraphToBigWig {output.bg} {input.chrom} {output.bw}
+        bamCoverage -b {input} -o {output} -p {threads} --normalizeUsing BPM
+        """
+
+rule create_bulk_pbmc_fragments:
+    input:"data/pbmc_bulk/mapped/{plex}/{mark}.bam"
+    output: "data/pbmc_bulk/mapped/{plex}/{mark}.bed.gz"
+    threads: 6
+    shell:
+        """
+        sinto fragments -p {threads} \
+          -b {input} \
+          --barcode_regex "[^:]*" \
+          -f data/pbmc_bulk/mapped/{wildcards.plex}/{wildcards.mark}.frag
+        
+        sort -k1,1 -k2,2n data/pbmc_bulk/mapped/{wildcards.plex}/{wildcards.mark}.frag \
+          > data/pbmc_bulk/mapped/{wildcards.plex}/{wildcards.mark}.bed
+        bgzip data/pbmc_bulk/mapped/{wildcards.plex}/{wildcards.mark}.bed
+        tabix -p bed {output}
+        rm data/pbmc_bulk/mapped/{wildcards.plex}/{wildcards.mark}.frag
         """
 
 rule ct_pro_bigwig:
@@ -294,7 +296,7 @@ rule ct_pro_bigwig:
         me3_bw="data/ct_pro/H3K27me3.bw",
         ac_bg="data/ct_pro/H3K27ac.bg",
         ac_bw="data/ct_pro/H3K27ac.bw"
-    threads: 1
+    threads: 6
     shell:
         """
         bedtools genomecov -i {input.me3} -g {input.chrom} -bg > data/ct_pro/H3K27me3.tmp
@@ -308,26 +310,26 @@ rule ct_pro_bigwig:
 
 rule encode_k562_peaks:
     input: "datasets/k562.txt"
-    output: "data/k562_peaks/ENCFF031FSF.bed.gz"
+    output:
+        "data/k562_peaks/ENCFF031FSF.bed.gz",
+        "data/k562_peaks/ENCFF038DDS.bed.gz",
+        "data/k562_peaks/ENCFF266OPF.bed.gz",
+        "data/k562_peaks/ENCFF053XYZ.bed.gz"
     threads: 1
     shell:
         """
         wget -i {input} -P data/k562_peaks
         """
 
-rule cellculture_bulk_bw:
-    input:
-        bed="data/HEK_K562_bulk/mapped/{cell}-{plex}-{mark}.bed.gz",
-        chrom="data/hg38.chrom.sizes"
-    output:
-        bg="data/HEK_K562_bulk/mapped/{cell}-{plex}-{mark}.bedgraph",
-        bw="data/HEK_K562_bulk/mapped/{cell}-{plex}-{mark}.bw",
-    threads: 6
-    message: "Creating bigwig for {input}"
+rule collect_k562_rna_peaks:
+    input: 
+        "data/k562_peaks/ENCFF266OPF.bed.gz",
+        "data/k562_peaks/ENCFF053XYZ.bed.gz"
+    output: "data/k562_peaks/rna.bed"
+    threads: 1
     shell:
         """
-        bedtools genomecov -i {input.bed} -g {input.chrom} -bg > {output.bg}
-        bedGraphToBigWig {output.bg} {input.chrom} {output.bw}
+        Rscript code/HEK_K562_bulk/collect_peaks.R
         """
 
 rule demux_pbmc_ntt:
@@ -539,6 +541,164 @@ rule process_bmmc_atac:
 
 # cellculture
 
+rule bulk_cellculture_covplot:
+    input:
+        "data/HEK_K562_bulk/mapped/K562-mono-K27ac.bw",
+        "data/HEK_K562_bulk/mapped/K562-mono-K27me.bw",
+        "data/HEK_K562_bulk/mapped/K562-mono-Pol2.bw",
+        "data/HEK_K562_bulk/mapped/K562-plex-K27ac.bw",
+        "data/HEK_K562_bulk/mapped/K562-plex-K27me.bw",
+        "data/HEK_K562_bulk/mapped/K562-plex-Pol2.bw"
+    output: "plots/hek_k562_bulk/bulk_covplot_k562.png"
+    shell:
+        """
+        Rscript code/HEK_K562_bulk/analysis.R
+        """
+
+rule bulk_cellculture_heatmap:
+    input:
+        mono_ac="data/HEK_K562_bulk/mapped/K562-mono-K27ac.bw",
+        mono_me3="data/HEK_K562_bulk/mapped/K562-mono-K27me.bw",
+        mono_rna="data/HEK_K562_bulk/mapped/K562-mono-Pol2.bw",
+        plex_ac="data/HEK_K562_bulk/mapped/K562-plex-K27ac.bw",
+        plex_me3="data/HEK_K562_bulk/mapped/K562-plex-K27me.bw",
+        plex_rna="data/HEK_K562_bulk/mapped/K562-plex-Pol2.bw",
+        me3_peaks="data/k562_peaks/ENCFF031FSF.bed.gz",
+        ac_peaks="data/k562_peaks/ENCFF038DDS.bed.gz",
+        rna_peaks="data/k562_peaks/rna.bed"
+    output:
+        me3="plots/hek_k562_bulk/heatmap_k562_me3.png",
+        ac="plots/hek_k562_bulk/heatmap_k562_ac.png",
+        rna="plots/hek_k562_bulk/heatmap_k562_rna.png"
+    threads: 24
+    shell:
+        """
+        gzip -dc {input.me3_peaks} > data/k562_peaks/ENCFF031FSF.bed
+        gzip -dc {input.ac_peaks} > data/k562_peaks/ENCFF038DDS.bed
+
+        computeMatrix reference-point \
+          --referencePoint 'center' \
+          --missingDataAsZero \
+          -S {input.plex_ac} {input.plex_me3} {input.plex_rna} \
+          {input.mono_ac} {input.mono_me3} {input.mono_rna} \
+          -R data/k562_peaks/ENCFF049HUP.bed \
+          --upstream 5000 --downstream 5000 \
+          -p {threads} \
+          -o data/HEK_K562_bulk/h3k27me3.mat.gz
+
+        computeMatrix reference-point \
+          --referencePoint 'center' \
+          --missingDataAsZero \
+          -S {input.plex_ac} {input.plex_me3} {input.plex_rna} \
+          {input.mono_ac} {input.mono_me3} {input.mono_rna} \
+          -R data/k562_peaks/ENCFF038DDS.bed \
+          --upstream 5000 --downstream 5000 \
+          -p {threads} \
+          -o data/HEK_K562_bulk/h3k27ac.mat.gz
+
+        computeMatrix reference-point \
+          --referencePoint 'center' \
+          --missingDataAsZero \
+          -S {input.plex_ac} {input.plex_me3} {input.plex_rna} \
+          {input.mono_ac} {input.mono_me3} {input.mono_rna} \
+          -R {input.rna_peaks} \
+          --upstream 5000 --downstream 5000 \
+          -p {threads} \
+          -o data/HEK_K562_bulk/rna.mat.gz
+          
+        plotHeatmap \
+          -m data/HEK_K562_bulk/h3k27me3.mat.gz  \
+          -o {output.me3} \
+          --whatToShow 'heatmap and colorbar' \
+          --colorList '#FFFFFF,#F98401' '#FFFFFF,#D3145A' '#FFFFFF,#036C9A' '#FFFFFF,#676767' '#FFFFFF,#676767' '#FFFFFF,#676767'
+
+        plotHeatmap \
+          -m data/HEK_K562_bulk/h3k27ac.mat.gz  \
+          -o {output.ac} \
+          --zMax 0.5 \
+          --whatToShow 'heatmap and colorbar' \
+          --colorList '#FFFFFF,#F98401' '#FFFFFF,#D3145A' '#FFFFFF,#036C9A' '#FFFFFF,#676767' '#FFFFFF,#676767' '#FFFFFF,#676767'
+
+        plotHeatmap \
+          -m data/HEK_K562_bulk/rna.mat.gz  \
+          -o {output.rna} \
+          --zMax 0.5 \
+          --whatToShow 'heatmap and colorbar' \
+          --colorList '#FFFFFF,#F98401' '#FFFFFF,#D3145A' '#FFFFFF,#036C9A' '#FFFFFF,#676767' '#FFFFFF,#676767' '#FFFFFF,#676767'
+        """
+
+rule bulk_pbmc_covplot:
+    input:
+        "data/pbmc_bulk/mapped/mono/me3.bw",
+        "data/pbmc_bulk/mapped/mono/ac.bw",
+        "data/pbmc_bulk/mapped/plex/me3.bw",
+        "data/pbmc_bulk/mapped/plex/ac.bw"
+    output: "plots/pbmc_bulk/bulk_covplot_pbmc.png"
+    shell:
+        """
+        Rscript code/pbmc_bulk/analysis.R
+        """
+
+rule pbmc_bulk_frip:
+    input: 
+        "data/pbmc_bulk/mapped/mono/me3.bed.gz",
+        "data/pbmc_bulk/mapped/mono/ac.bed.gz",
+        "data/pbmc_bulk/mapped/plex/me3.bed.gz",
+        "data/pbmc_bulk/mapped/plex/ac.bed.gz"
+    output: "plots/pbmc_bulk/frip_ac.png", "plots/pbmc_bulk/frip_me3.png"
+    shell:
+        """
+        Rscript code/pbmc_bulk/frip.R
+        """
+
+rule bulk_pbmc_heatmap:
+    input:
+        mono_ac="data/pbmc_bulk/mapped/mono/ac.bw",
+        mono_me3="data/pbmc_bulk/mapped/mono/me3.bw",
+        plex_ac="data/pbmc_bulk/mapped/plex/ac.bw",
+        plex_me3="data/pbmc_bulk/mapped/plex/me3.bw",
+        me3_peaks="data/encode/ENCFF291LVP.bed.gz",
+        ac_peaks="data/encode/ENCFF832RWT.bed.gz"
+    output:
+        me3="plots/pbmc_bulk/heatmap_pbmc_me3.png",
+        ac="plots/pbmc_bulk/heatmap_pbmc_ac.png"
+    threads: 24
+    shell:
+        """
+        gzip -dc {input.me3_peaks} > data/encode/ENCFF291LVP.bed
+        gzip -dc {input.ac_peaks} > data/encode/ENCFF832RWT.bed
+
+        computeMatrix reference-point \
+          --referencePoint 'center' \
+          --missingDataAsZero \
+          -S {input.plex_ac} {input.plex_me3} {input.mono_ac} {input.mono_me3} \
+          -R data/encode/ENCFF291LVP.bed \
+          --upstream 5000 --downstream 5000 \
+          -p {threads} \
+          -o data/pbmc_bulk/h3k27me3.mat.gz
+
+        computeMatrix reference-point \
+          --referencePoint 'center' \
+          --missingDataAsZero \
+          -S {input.plex_ac} {input.plex_me3} {input.mono_ac} {input.mono_me3} \
+          -R data/encode/ENCFF832RWT.bed \
+          --upstream 5000 --downstream 5000 \
+          -p {threads} \
+          -o data/pbmc_bulk/h3k27ac.mat.gz
+        
+        plotHeatmap \
+          -m data/pbmc_bulk/h3k27me3.mat.gz \
+          -o {output.me3} \
+          --whatToShow 'heatmap only' \
+          --colorList '#FFFFFF,#F98401' '#FFFFFF,#D3145A' '#FFFFFF,#676767' '#FFFFFF,#676767'
+
+        plotHeatmap \
+          -m data/pbmc_bulk/h3k27ac.mat.gz \
+          -o {output.ac} \
+          --whatToShow 'heatmap only' \
+          --colorList '#FFFFFF,#F98401' '#FFFFFF,#D3145A' '#FFFFFF,#676767' '#FFFFFF,#676767'
+        """
+        
 rule process_cellculture_sc:
     input:
         ac="data/HEK_K562_sc/sinto/K27ac.bed.gz",
@@ -551,7 +711,7 @@ rule process_cellculture_sc:
     threads: 6
     shell:
         """
-        Rscript code/HEK_K562_sc/process.R {threads} {output.obj} "data/HEK_K562_sc/sinto
+        Rscript code/HEK_K562_sc/process.R {threads} {output.obj}
         """
 
 rule analyze_cellculture:
