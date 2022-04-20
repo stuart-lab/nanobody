@@ -45,3 +45,5 @@ vignettes/*.pdf
 *.rds
 *.Rproj
 .snakemake
+genome/
+plots/
