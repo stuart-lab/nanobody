@@ -1,25 +1,73 @@
-# Nanobody-tethered tagmentation sequencing (NTT-seq)
+# <ins>N</ins>anobody-<ins>t</ins>ethered <ins>t</ins>agmentation followed by sequencing (NTT-seq)
 
-Code to reproduce analyses show in [Stuart et al. (2022), *bioRxiv*](https://doi.org/10.1101/2022.03.08.483436)
+This repository contains code needed to reproduce the analyses shown in
+[Stuart et al. (2022), *bioRxiv*](https://doi.org/10.1101/2022.03.08.483436)
 
-To create environment with dependencies:
+![](img/ntt.png)
+
+## Installing dependencies
+
+All the required dependencies needed to run the workflow can 
+be installed automatically by creating a new conda environment.
+
+First ensure that [conda](https://docs.conda.io/en/latest/miniconda.html)
+or [mamba](https://github.com/mamba-org/mamba) is installed and available.
+
+To create a new environment with the dependencies installed, run:
 
 ```
+# using conda
+conda env create -f environment.yaml
+```
+
+```
+# using mamba
 mamba env create -f environment.yaml
+```
+
+## Running the workflow
+
+This workflow involves downloading data from AWS using the AWS
+command line tools. To enable the download, you will first need
+to create an AWS account and set up the AWS command line tools by
+running `aws configure`. *Note that some of the data downloaded
+my incur charges from AWS*.
+
+To run the Snakemake workflow, first activate the conda environment
+containing the required dependencies:
+
+```
 conda activate ntt
 ```
 
-This workflow involves paid download of data from AWS. To
-enable the download, create an AWS account and set up the
-AWS command line tools by running `aws configure`.
-
-To run the workflow:
+Next, run `snakemake` with the desired options. Setting the `-j` parameter
+controls the maximum number of cores used by the workflow:
 
 ```
 snakemake -j 24
 ```
 
-Citation:
+See the [snakemake](https://snakemake.readthedocs.io/en/stable/)
+documentation for a complete list of available options.
+
+## Data availability
+
+Processed datasets from this study are available from:
+
+* GEO: []()  
+* SRA: []()  
+* dbGaP: []()
+
+## Plasmid availability
+
+Plasmids generated from this study are available from [AddGene](https://www.addgene.org/):
+
+* [pTXB1-nbOcIgG-Tn5](https://www.addgene.org/184285)  
+* [pTXB1-nbMmKappa-Tn5](https://www.addgene.org/184286)  
+* [pTBX1-nbMmIgG1-Tn5](https://www.addgene.org/184287)  
+* [pTBX1-nbMmIgG2a-Tn5](https://www.addgene.org/184288)
+
+## Citation
 
 ```
 @UNPUBLISHED{Stuart2022,
