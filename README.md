@@ -31,7 +31,7 @@ This workflow involves downloading data from AWS using the AWS
 command line tools. To enable the download, you will first need
 to create an AWS account and set up the AWS command line tools by
 running `aws configure`. *Note that some of the data downloaded
-my incur charges from AWS*.
+may incur charges from AWS*.
 
 To run the Snakemake workflow, first activate the conda environment
 containing the required dependencies:
