@@ -8,7 +8,12 @@ rule all:
         "plots/bmmc/trajectory.png",
         "plots/bmmc/rna_repressed.pdf",
         "plots/hek_k562/scatterplots_bulk.png"
-        "plots/hek_k562/correlation.png"
+        "plots/hek_k562/correlation.png",
+        "plots/hek_k562/multi_cuttag_frip.png",
+        "plots/hek_k562/multi_cuttag_scatter.png",
+        "plots/pbmc/encode_cor_all.png",
+        "plots/pbmc/encode_cor_spearman.png",
+        "plots/pbmc/replicate_correlation.png"
 
 ### Downloads ###
 rule get_chr_size:
@@ -42,6 +47,36 @@ rule get_ct_pro:
     shell:
         """
         wget -i {input} -P data/ct_pro
+        """
+
+rule get_mesc_peaks:
+    input: "datasets/mesc.txt"
+    output: "data/mesc/ENCFF008XKX.bed.gz", "data/mesc/ENCFF360VIS.bed.gz"
+    threads: 1
+    message: "Downloading mESC peaks"
+    shell:
+        """
+        wget -i {input} -P data/mesc
+        """
+        
+rule get_henikoff:
+    input: "datasets/henikoff.txt"
+    output:
+        "data/henikoff/GSM5034342_K27me3_R1_PBMC.fragments.HG38.tsv.gz",
+        "data/henikoff/GSM5034343_K27me3_R2_PBMC.fragments.HG38.tsv.gz",
+        "data/henikoff/GSM5034344_K27ac_PBMC.fragments.HG38.tsv.gz"
+    message: "Downloading PBMC CUT&Tag data"
+    threads: 1
+    shell:
+        """
+        wget -i {input} -P data/henikoff
+        wget https://github.com/Henikoff/scCUT-Tag/files/8647406/meta.csv -P data/henikoff
+        wget https://github.com/Henikoff/scCUT-Tag/files/8653804/K27Ac_pbmc_meta.csv -P data/henikoff
+
+        cd data/henikoff
+        tabix -p bed GSM5034342_K27me3_R1_PBMC.fragments.HG38.tsv.gz
+        tabix -p bed GSM5034343_K27me3_R2_PBMC.fragments.HG38.tsv.gz
+        tabix -p bed GSM5034344_K27ac_PBMC.fragments.HG38.tsv.gz
         """
         
 rule update_ct_pro:
@@ -124,6 +159,19 @@ rule collect_encode_peaks:
         Rscript code/encode/combine_peaks.R
         """
 
+rule get_scatac_pbmc:
+    output: "data/pbmc_atac/10k_pbmc_ATACv2_nextgem_Chromium_X_fragments.tsv.gz"
+    message: "Downloading PBMC scATAC-seq"
+    threads: 1
+    shell:
+        """
+        cd data/pbmc_atac
+        wget https://cf.10xgenomics.com/samples/cell-atac/2.1.0/10k_pbmc_ATACv2_nextgem_Chromium_X/10k_pbmc_ATACv2_nextgem_Chromium_X_fragments.tsv.gz
+        wget https://cf.10xgenomics.com/samples/cell-atac/2.1.0/10k_pbmc_ATACv2_nextgem_Chromium_X/10k_pbmc_ATACv2_nextgem_Chromium_X_fragments.tsv.gz.tbi
+        wget https://cf.10xgenomics.com/samples/cell-atac/2.1.0/10k_pbmc_ATACv2_nextgem_Chromium_X/10k_pbmc_ATACv2_nextgem_Chromium_X_singlecell.csv
+        wget https://cf.10xgenomics.com/samples/cell-atac/2.1.0/10k_pbmc_ATACv2_nextgem_Chromium_X/10k_pbmc_ATACv2_nextgem_Chromium_X_filtered_peak_bc_matrix.h5
+        """
+
 ### Map ###
 
 rule map_cellculture_sc:
@@ -202,6 +250,21 @@ rule create_bulk_cellculture_fragments:
         bgzip data/HEK_K562_bulk/mapped/{wildcards.cell}-{wildcards.plex}-{wildcards.mark}.bed
         tabix -p bed {output}
         rm data/HEK_K562_bulk/mapped/{wildcards.cell}-{wildcards.plex}-{wildcards.mark}.frag
+        """
+
+rule process_cellculture_sc:
+    input:
+        ac="data/HEK_K562_sc/sinto/K27ac.bed.gz",
+        me="data/HEK_K562_sc/sinto/K27me.bed.gz",
+        pol2="data/HEK_K562_sc/sinto/Pol2.bed.gz"
+    output: 
+        obj="objects/hek_k562.rds",
+        frags="data/HEK_K562_sc/split/K27ac_hek.bed.gz"
+    message: "Processing HEK/K562 scNTT-seq data"
+    threads: 6
+    shell:
+        """
+        Rscript code/HEK_K562_sc/process.R {threads} {output.obj} data/HEK_K562_sc/sinto
         """
 
 rule map_pbmc_bulk:
@@ -334,69 +397,55 @@ rule collect_k562_rna_peaks:
 
 rule demux_pbmc_ntt:
     input:
-        read1="data/pbmc_protein/ntt/Undetermined_S0_R1_001.fastq.gz",
-        readi5="data/pbmc_protein/ntt/Undetermined_S0_R2_001.fastq.gz",
-        read2="data/pbmc_protein/ntt/Undetermined_S0_R3_001.fastq.gz",
-        bc="data/pbmc_protein/barcodes.fa"
-    output: directory("data/pbmc_protein/ntt/out")
-    message: "Demultiplex NTT reads"
+        read1="data/{exp}/ntt/Undetermined_S0_R1_001.fastq.gz",
+        readi5="data/{exp}/ntt/Undetermined_S0_R2_001.fastq.gz",
+        read2="data/{exp}/ntt/Undetermined_S0_R3_001.fastq.gz",
+        bc="data/{exp}/barcodes.fa"
+    output:
+        "data/{exp}/ntt/out/H3K27me3.R1.fastq",
+        "data/{exp}/ntt/out/H3K27ac.R1.fastq"
+    params:
+        outdir="data/{exp}/ntt/out"
+    message: "Demultiplex NTT reads for {wildcards.exp}"
     threads: 1
     shell:
         """
-        python code/pbmc_protein/demux.py \
+        python code/demux.py \
            --read1 {input.read1} \
            --read_i5 {input.readi5} \
            --read2 {input.read2} \
            --tn5 {input.bc} \
-           --output {output}
+           --output {params.outdir}
         """
 
 rule map_pbmc_ntt:
     input:
         genome="genome/hg38/GCA_000001405.15_GRCh38_no_alt_analysis_set.fna.gz",
-        reads=directory("data/pbmc_protein/ntt/out")
-    output:
-        ac="data/pbmc_protein/ntt/H3K27ac.tsv.gz",
-        me="data/pbmc_protein/ntt/H3K27me3.tsv.gz"
-    message: "Mapping PBMC scNTT-seq"
+        reads="data/{exp}/ntt/out/{mk}.R1.fastq"
+    output: "data/{exp}/ntt/{mk}.tsv.gz"
+    message: "Mapping PBMC scNTT-seq for {wildcards.exp} {wildcards.mk}"
     threads: 24
     shell:
         """
         bwa-mem2 mem {input.genome} \
             -t {threads} \
-            data/pbmc_protein/ntt/out/H3K27ac.R1.fastq \
-            data/pbmc_protein/ntt/out/H3K27ac.R2.fastq \
+            data/{wildcards.exp}/ntt/out/{wildcards.mk}.R1.fastq \
+            data/{wildcards.exp}/ntt/out/{wildcards.mk}.R2.fastq \
             | samtools sort -@ {threads} -O bam - \
-            > data/pbmc_protein/ntt/out/H3K27ac.bam
-        
-        bwa-mem2 mem {input.genome} \
-            -t {threads} \
-            data/pbmc_protein/ntt/out/H3K27me3.R1.fastq \
-            data/pbmc_protein/ntt/out/H3K27me3.R2.fastq \
-            | samtools sort -@ {threads} -O bam - \
-            > data/pbmc_protein/ntt/out/H3K27me3.bam
+            > data/{wildcards.exp}/ntt/out/{wildcards.mk}.bam
             
-        samtools index data/pbmc_protein/ntt/out/H3K27ac.bam
-        samtools index data/pbmc_protein/ntt/out/H3K27me3.bam
+        samtools index data/{wildcards.exp}/ntt/out/{wildcards.mk}.bam
         
         sinto fragments -p {threads} \
-          -b data/pbmc_protein/ntt/out/H3K27ac.bam \
+          -b data/{wildcards.exp}/ntt/out/{wildcards.mk}.bam \
           --barcode_regex "[^:]*" \
-          -f data/pbmc_protein/ntt/H3K27ac.frag
-          
-        sinto fragments -p {threads} \
-          -b data/pbmc_protein/ntt/out/H3K27me3.bam \
-          --barcode_regex "[^:]*" \
-          -f data/pbmc_protein/ntt/H3K27me3.frag
+          -f data/{wildcards.exp}/ntt/{wildcards.mk}.frag
 
-        sort -k1,1 -k2,2n data/pbmc_protein/ntt/H3K27ac.frag > data/pbmc_protein/ntt/H3K27ac.tsv
-        sort -k1,1 -k2,2n data/pbmc_protein/ntt/H3K27me3.frag > data/pbmc_protein/ntt/H3K27me3.tsv
+        sort -k1,1 -k2,2n data/{wildcards.exp}/ntt/{wildcards.mk}.frag > data/{wildcards.exp}/ntt/{wildcards.mk}.tsv
 
-        rm data/pbmc_protein/ntt/H3K27ac.frag data/pbmc_protein/ntt/H3K27me3.frag
-        bgzip -@ {threads} data/pbmc_protein/ntt/H3K27ac.tsv
-        bgzip -@ {threads} data/pbmc_protein/ntt/H3K27me3.tsv
-        tabix -p bed {output.ac}
-        tabix -p bed {output.me}
+        rm data/{wildcards.exp}/ntt/{wildcards.mk}.frag
+        bgzip -@ {threads} data/{wildcards.exp}/ntt/{wildcards.mk}.tsv
+        tabix -p bed {output}
         """
 
 rule index_adt:
@@ -414,7 +463,7 @@ rule join_adt_reads_pbmc:
         r1="data/pbmc_protein/adt/TAG_S2_R1_001.fastq.gz",
         r3="data/pbmc_protein/adt/TAG_S2_R3_001.fastq.gz"
     output: "data/pbmc_protein/adt/read1.fastq.gz"
-    threads: 1
+    threads: 4
     message: "Combining ADT reads for quantification"
     shell:
         """
@@ -422,7 +471,7 @@ rule join_adt_reads_pbmc:
           | paste - - - - \
           | awk -F'\\t' -v one="data/pbmc_protein/adt/read1.fastq" '{{ OFS="\\n"; print $1,$3$4,$5,$7$8 >> one;}}'
         
-        gzip data/pbmc_protein/adt/read1.fastq
+        pigz -p {threads} data/pbmc_protein/adt/read1.fastq
         """
 
 rule map_pbmc_adt:
@@ -430,7 +479,7 @@ rule map_pbmc_adt:
         index=directory("data/adt_index"),
         reads="data/pbmc_protein/adt/read1.fastq.gz"
     output: "data/pbmc_protein/adt/outs/alevin/quants_mat.gz"
-    message: "Quantify PBMC ADTs"
+    message: "Quantify PBMC ADTs for donor1"
     threads: 6
     shell:
         """
@@ -465,13 +514,13 @@ rule barcode_bmmc_ntt:
           --barcode_fastq K27ac_R2.fastq \
           --read1 scBM_k27ac_S2_R1_001.fastq \
           --read2 scBM_k27ac_S2_R3_001.fastq \
-          -b 16 \
+          -b 16
           
         sinto barcode \
           --barcode_fastq K27me_R2.fastq \
           --read1 scBM_k27me_S1_R1_001.fastq \
           --read2 scBM_k27me_S1_R3_001.fastq \
-          -b 16 \
+          -b 16
           
         pigz -p {threads} *.fastq
         mkdir barcoded
@@ -535,6 +584,20 @@ rule process_bmmc_atac:
     shell:
         """
         Rscript code/bmmc_atac/process_bmmc_atac.r
+        """
+        
+rule process_henikoff:
+    input:
+        "data/henikoff/GSM5034342_K27me3_R1_PBMC.fragments.HG38.tsv.gz",
+        "data/henikoff/GSM5034343_K27me3_R2_PBMC.fragments.HG38.tsv.gz",
+        "data/henikoff/GSM5034344_K27ac_PBMC.fragments.HG38.tsv.gz",
+        "objects/pbmc_protein.rds"
+    output: "objects/henikoff/ac.rds", "objects/henikoff/me3.rds"
+    threads: 1
+    message: "Processing Henikoff PBMC datasets"
+    shell:
+        """
+        Rscript code/henikoff/process.R
         """
 
 ### Analysis ###
@@ -627,6 +690,300 @@ rule bulk_cellculture_heatmap:
           --colorList '#FFFFFF,#F98401' '#FFFFFF,#D3145A' '#FFFFFF,#036C9A' '#FFFFFF,#676767' '#FFFFFF,#676767' '#FFFFFF,#676767'
         """
 
+rule analyze_cellculture:
+    input: "objects/hek_k562.rds", "data/k562_peaks/ENCFF031FSF.bed.gz"
+    output: "plots/hek_k562/correlation.png"
+    threads: 1
+    shell:
+        """
+        Rscript code/HEK_K562_sc/analysis.R
+        """
+
+rule scatterplots_cellculture:
+    input: "objects/hek_k562.rds"
+    output: "plots/hek_k562/scatterplots_bulk.png"
+    threads: 1
+    shell:
+        """
+        Rscript code/HEK/K562_bulk/quantify_regions.R
+        """
+rule scatterplots_multict:
+    input:
+        "data/mesc/ENCFF008XKX.bed.gz",
+        "data/mesc/ENCFF360VIS.bed.gz",
+        "data/multict/fragments/H3K27ac-H3K27ac.tsv.gz"
+    output:
+        "plots/hek_k562/multi_cuttag_frip.png",
+        "plots/hek_k562/multi_cuttag_scatter.png"
+    threads: 1
+    shell:
+        """
+        Rscript code/HEK_K562_sc/mct_scatter.R
+        """
+
+# pbmc/bmmc
+rule process_pbmc_atac:
+    input: "data/pbmc_atac/10k_pbmc_ATACv2_nextgem_Chromium_X_fragments.tsv.gz"
+    output: "objects/pbmc_atac.rds"
+    message: "Processing PBMC scATAC-seq"
+    threads: 1
+    shell:
+        """
+        Rscript code/pbmc_atac/process.R
+        """
+
+rule process_pbmc_ntt:
+    input:
+        adt="data/pbmc_protein/adt/outs/alevin/quants_mat.gz",
+        ac="data/pbmc_protein/ntt/H3K27ac.tsv.gz",
+        me="data/pbmc_protein/ntt/H3K27me3.tsv.gz",
+    output: "objects/pbmc_protein.rds"
+    threads: 10
+    shell:
+        """
+        Rscript code/pbmc_protein/process.R {threads} {input.adt} {input.ac} {input.me} {output}
+        """
+
+rule process_pbmc_sc:
+    input:
+        ac="data/pbmc_sc/ntt/H3K27ac.tsv.gz",
+        me="data/pbmc_sc/ntt/H3K27me3.tsv.gz",
+    output: "objects/pbmc_sc.rds"
+    threads: 10
+    shell:
+        """
+        Rscript code/pbmc_sc/process.R {threads} {input.ac} {input.me} {output}
+        """
+
+rule split_pbmc_protein_fragments:
+    input:
+        obj="objects/pbmc_protein.rds",
+        chrom="data/hg38.chrom.sizes"
+    output:
+        "data/pbmc_protein/bigwig/B_cell_ac.bw",
+        "data/pbmc_protein/bigwig/pbmc_ac.bed.gz",
+        "data/pbmc_protein/bigwig/pbmc_me3.bed.gz",
+        "data/pbmc_protein/bigwig/pbmc_ac.bw",
+        "data/pbmc_protein/bigwig/pbmc_me3.bw"
+    message: "Creating PBMC bigwig files"
+    threads: 1
+    shell:
+        """
+        # split fragment files
+        Rscript code/pbmc_protein/split.R
+        
+        # create bigwig
+        cd data/pbmc_protein/bigwig
+        for fragfile in $(ls -d *.bed.gz);do
+          fname=(${{fragfile//.bed.gz/ }})
+          bedtools genomecov -i $fragfile -g ../../../{input.chrom} -bg > "${{fname}}.bg"
+          bedGraphToBigWig "${{fname}}.bg" ../../../{input.chrom} "${{fname}}.bw"
+        done
+        """
+
+rule split_pbmc_sc_fragments:
+    input:
+        obj="objects/pbmc_sc.rds",
+        chrom="data/hg38.chrom.sizes"
+    output:
+        "data/pbmc_sc/ntt/pbmc_ac.bed.gz",
+        "data/pbmc_sc/ntt/pbmc_me3.bed.gz",
+        "data/pbmc_sc/ntt/pbmc_ac.bw",
+        "data/pbmc_sc/ntt/pbmc_me3.bw"
+    message: "Creating PBMC filtered fragment files"
+    threads: 1
+    shell:
+        """
+        # split fragment files
+        Rscript code/pbmc_sc/split.R
+        
+        # create bigwig
+        cd data/pbmc_sc/ntt
+        for fragfile in $(ls -d *.bed.gz);do
+          fname=(${{fragfile//.bed.gz/ }})
+          bedtools genomecov -i $fragfile -g ../../../{input.chrom} -bg > "${{fname}}.bg"
+          bedGraphToBigWig "${{fname}}.bg" ../../../{input.chrom} "${{fname}}.bw"
+        done
+        """
+
+rule split_bmmc_fragments:
+    input: "objects/bmmc_dual.rds"
+    output: "data/bmmc_dual/bulk_fragments/me3.bed.gz"
+    message: "Splitting BMMC fragment file"
+    threads: 1
+    shell:
+        """
+        Rscript code/bmmc_dual/split.R
+        """
+        
+rule pbmc_bulk_pseudobulk_cor:
+    input:
+        me3_sc="data/pbmc_protein/bigwig/pbmc_me3.bw",
+        ac_sc="data/pbmc_protein/bigwig/pbmc_ac.bw",
+        ac_chip="data/encode/ENCFF518PSI.bigWig",
+        me3_chip="data/encode/ENCFF598EGZ.bigWig",
+        me3_bulk_mono="data/pbmc_bulk/mapped/mono/me3.bw",
+        me3_bulk_plex="data/pbmc_bulk/mapped/plex/me3.bw",
+        ac_bulk_mono="data/pbmc_bulk/mapped/mono/ac.bw",
+        ac_bulk_plex="data/pbmc_bulk/mapped/plex/ac.bw",
+        all_peaks="data/encode/all_bulk.bed",
+        ctp_ac_bw="data/ct_pro/H3K27ac.bw",
+        ctp_me3_bw="data/ct_pro/H3K27me3.bw"
+    output: "data/pbmc_bulk/encode_cor.tsv"
+    threads: 6
+    shell:
+        """
+        multiBigwigSummary BED-file -b \
+          {input.me3_sc} \
+          {input.ac_sc} \
+          {input.me3_bulk_mono} \
+          {input.me3_bulk_plex} \
+          {input.ac_bulk_mono} \
+          {input.ac_bulk_plex} \
+          {input.me3_chip} \
+          {input.ac_chip} \
+          {input.ctp_ac_bw} \
+          {input.ctp_me3_bw} \
+          --BED {input.all_peaks} \
+          -p {threads} \
+          --outRawCounts {output} \
+          -o data/pbmc_bulk/cor_matrix_all.npz
+        """
+
+rule pbmc_replicate_cor:
+    input:
+        me3_1="data/pbmc_protein/bigwig/pbmc_me3.bw",
+        ac_1="data/pbmc_protein/bigwig/pbmc_ac.bw",
+        me3_2="data/pbmc_sc/ntt/pbmc_me3.bw",
+        ac_2="data/pbmc_sc/ntt/pbmc_ac.bw",
+        all_peaks="data/encode/all_bulk.bed"
+    output: "data/pbmc_protein/replicate_cor.tsv"
+    threads: 6
+    shell:
+        """
+        multiBigwigSummary BED-file -b \
+          {input.me3_1} \
+          {input.ac_1} \
+          {input.me3_2} \
+          {input.ac_2} \
+          --BED {input.all_peaks} \
+          -p {threads} \
+          --outRawCounts {output} \
+          -o data/pbmc_protein/replicate_cor_matrix_all.npz
+        """
+
+rule plot_bulk_cor_pbmc:
+    input: "data/pbmc_bulk/encode_cor.tsv"
+    output: "plots/pbmc/encode_cor_all.png"
+    threads: 1
+    shell:
+        """
+        Rscript code/pbmc_bulk/encode_cor_all.R
+        """
+
+rule pbmc_encode_cor:
+    input:
+        sc="data/pbmc_protein/bigwig/B_cell_ac.bw",
+        encode="data/encode/ENCFF842JLZ.bigWig",
+        me3="data/encode/h3k27me3.bed",
+        ac="data/encode/h3k27ac.bed"
+    output:
+        "data/pbmc_protein/bigwig/raw_ac.tsv",
+        "data/pbmc_protein/bigwig/raw_me3.tsv",
+        "data/pbmc_protein/bigwig/raw.tsv"
+    message: "Computing ENCODE/NTT correlations"
+    threads: 6
+    shell:
+        """
+        # ac cor
+        multiBigwigSummary BED-file -b \
+          data/pbmc_protein/bigwig/B_cell_ac.bw \
+          data/pbmc_protein/bigwig/NK_ac.bw \
+          data/pbmc_protein/bigwig/CD14_Mono_ac.bw \
+          data/pbmc_protein/bigwig/CD8_T_cell_ac.bw \
+          data/pbmc_protein/bigwig/CD4_T_cell_ac.bw \
+          data/pbmc_protein/bigwig/Late_erythroid_ac.bw \
+          data/encode/ENCFF293ETP.bigWig \
+          data/encode/ENCFF611GRL.bigWig \
+          data/encode/ENCFF181OXO.bigWig \
+          data/encode/ENCFF526VJO.bigWig \
+          data/encode/ENCFF601NLG.bigWig \
+          data/encode/ENCFF951ZBV.bigWig \
+          data/encode/ENCFF064JOI.bigWig \
+          --BED {input.ac} \
+          -p {threads} \
+          --outRawCounts data/pbmc_protein/bigwig/raw_ac.tsv \
+          -o data/pbmc_protein/bigwig/cor_matrix_ac.npz
+        
+        # me3 cor
+        multiBigwigSummary BED-file -b \
+          data/pbmc_protein/bigwig/B_cell_me3.bw \
+          data/pbmc_protein/bigwig/NK_me3.bw \
+          data/pbmc_protein/bigwig/CD14_Mono_me3.bw \
+          data/pbmc_protein/bigwig/CD8_T_cell_me3.bw \
+          data/pbmc_protein/bigwig/CD4_T_cell_me3.bw \
+          data/pbmc_protein/bigwig/Late_erythroid_me3.bw \
+          data/encode/ENCFF569IPX.bigWig \
+          data/encode/ENCFF842JLZ.bigWig \
+          data/encode/ENCFF811VAX.bigWig \
+          data/encode/ENCFF499VWN.bigWig \
+          data/encode/ENCFF777EGG.bigWig \
+          data/encode/ENCFF046VLL.bigWig \
+          data/encode/ENCFF085YMB.bigWig \
+          --BED {input.me3} \
+          -p {threads} \
+          --outRawCounts data/pbmc_protein/bigwig/raw_me3.tsv \
+          -o data/pbmc_protein/bigwig/cor_matrix_me3.npz
+        
+        # all cor
+        multiBigwigSummary BED-file -b \
+          data/pbmc_protein/bigwig/B_cell_me3.bw \
+          data/pbmc_protein/bigwig/NK_me3.bw \
+          data/pbmc_protein/bigwig/CD14_Mono_me3.bw \
+          data/pbmc_protein/bigwig/CD8_T_cell_me3.bw \
+          data/pbmc_protein/bigwig/CD4_T_cell_me3.bw \
+          data/pbmc_protein/bigwig/Late_erythroid_me3.bw \
+          data/pbmc_protein/bigwig/B_cell_ac.bw \
+          data/pbmc_protein/bigwig/NK_ac.bw \
+          data/pbmc_protein/bigwig/CD14_Mono_ac.bw \
+          data/pbmc_protein/bigwig/CD8_T_cell_ac.bw \
+          data/pbmc_protein/bigwig/CD4_T_cell_ac.bw \
+          data/pbmc_protein/bigwig/Late_erythroid_ac.bw \
+          data/encode/ENCFF569IPX.bigWig \
+          data/encode/ENCFF842JLZ.bigWig \
+          data/encode/ENCFF811VAX.bigWig \
+          data/encode/ENCFF499VWN.bigWig \
+          data/encode/ENCFF777EGG.bigWig \
+          data/encode/ENCFF046VLL.bigWig \
+          data/encode/ENCFF085YMB.bigWig \
+          data/encode/ENCFF293ETP.bigWig \
+          data/encode/ENCFF611GRL.bigWig \
+          data/encode/ENCFF181OXO.bigWig \
+          data/encode/ENCFF526VJO.bigWig \
+          data/encode/ENCFF601NLG.bigWig \
+          data/encode/ENCFF951ZBV.bigWig \
+          data/encode/ENCFF064JOI.bigWig \
+          --BED data/encode/all.bed \
+          -p {threads} \
+          --outRawCounts data/pbmc_protein/bigwig/raw.tsv \
+          -o data/pbmc_protein/bigwig/cor_matrix_all.npz
+        """
+
+rule plot_pbmc_encode_cor:
+    input:
+        "data/pbmc_protein/bigwig/raw_ac.tsv",
+        "data/pbmc_protein/bigwig/raw_me3.tsv",
+        "data/pbmc_protein/bigwig/raw.tsv",
+        "data/pbmc_protein/replicate_cor.tsv"
+    output:
+        "plots/pbmc/encode_cor_spearman.png",
+        "plots/pbmc/replicate_correlation.png"
+    threads: 1
+    shell:
+        """
+        Rscript code/pbmc_protein/encode_cor.R
+        """
+
 rule bulk_pbmc_covplot:
     input:
         "data/pbmc_bulk/mapped/mono/me3.bw",
@@ -644,13 +1001,42 @@ rule pbmc_bulk_frip:
         "data/pbmc_bulk/mapped/mono/me3.bed.gz",
         "data/pbmc_bulk/mapped/mono/ac.bed.gz",
         "data/pbmc_bulk/mapped/plex/me3.bed.gz",
-        "data/pbmc_bulk/mapped/plex/ac.bed.gz"
+        "data/pbmc_bulk/mapped/plex/ac.bed.gz",
+        "data/encode/ENCFF832RWT.bed.gz",
+        "data/encode/ENCFF291LVP.bed.gz"
     output: "plots/pbmc_bulk/frip_ac.png", "plots/pbmc_bulk/frip_me3.png"
     shell:
         """
         Rscript code/pbmc_bulk/frip.R
         """
+        
+rule pbmc_sc_frip:
+    input: 
+        "objects/pbmc_protein.rds",
+        "objects/pbmc_sc.rds",
+        "data/ct_pro/H3K27ac_updated.rds",
+        "data/ct_pro/H3K27me3_updated.rds",
+        "objects/henikoff/me3.rds",
+        "objects/henikoff/ac.rds",
+        "data/encode/ENCFF832RWT.bed.gz",
+        "data/encode/ENCFF291LVP.bed.gz"
+    output: "plots/pbmc/frip_pbmc.png"
+    shell:
+        """
+        Rscript code/pbmc_protein/frip.R
+        """
 
+rule bmmc_frip:
+    input:
+        "objects/bmmc_dual.rds",
+        "data/encode/ENCFF832RWT.bed.gz",
+        "data/encode/ENCFF291LVP.bed.gz"
+    output: "plots/bmmc/frip_bmmc.png"
+    shell:
+        """
+        Rscript code/bmmc_dual/frip_bmmc.R
+        """
+        
 rule bulk_pbmc_heatmap:
     input:
         mono_ac="data/pbmc_bulk/mapped/mono/ac.bw",
@@ -698,203 +1084,37 @@ rule bulk_pbmc_heatmap:
           --whatToShow 'heatmap only' \
           --colorList '#FFFFFF,#F98401' '#FFFFFF,#D3145A' '#FFFFFF,#676767' '#FFFFFF,#676767'
         """
-        
-rule process_cellculture_sc:
-    input:
-        ac="data/HEK_K562_sc/sinto/K27ac.bed.gz",
-        me="data/HEK_K562_sc/sinto/K27me.bed.gz",
-        pol2="data/HEK_K562_sc/sinto/Pol2.bed.gz"
-    output: 
-        obj="objects/hek_k562.rds",
-        frags="data/HEK_K562_sc/split/K27ac_hek.bed.gz"
-    message: "Processing HEK/K562 scNTT-seq data"
-    threads: 6
-    shell:
-        """
-        Rscript code/HEK_K562_sc/process.R {threads} {output.obj}
-        """
 
-rule analyze_cellculture:
-    input: "objects/hek_k562.rds", "data/k562_peaks/ENCFF031FSF.bed.gz"
-    output: "plots/hek_k562/correlation.png"
-    threads: 1
-    shell:
-        """
-        Rscript code/HEK_K562_sc/analysis.R
-        """
-
-rule scatterplots_cellculture:
-    input: "objects/hek_k562.rds"
-    output: "plots/hek_k562/scatterplots_bulk.png"
-    threads: 1
-    shell:
-        """
-        Rscript code/HEK/K562_bulk/quantify_regions.R
-        """
-
-# pbmc/bmmc
-rule process_pbmc_ntt:
+rule pbmc_bmmc_scatter:
     input:
-        adt="data/pbmc_protein/adt/outs/alevin/quants_mat.gz",
-        ac="data/pbmc_protein/ntt/H3K27ac.tsv.gz",
-        me="data/pbmc_protein/ntt/H3K27me3.tsv.gz"
-    output: "objects/pbmc_protein.rds"
-    threads: 10
-    shell:
-        """
-        Rscript code/pbmc_protein/process.R {threads} {input.adt} {input.ac} {input.me} {output}
-        """
-        
-rule split_pbmc_fragments:
-    input:
-        obj="objects/pbmc_protein.rds",
-        chrom="data/hg38.chrom.sizes"
-    output: "data/pbmc_protein/bigwig/B_cell_ac.bw"
-    message: "Creating PBMC bigwig files"
-    threads: 1
-    shell:
-        """
-        # split fragment files
-        Rscript code/pbmc_protein/split.R
-        
-        # create bigwig
-        cd data/pbmc_protein/bigwig
-        for fragfile in $(ls -d *.bed.gz);do
-          fname=(${{fragfile//.bed.gz/ }})
-          bedtools genomecov -i $fragfile -g ../../../{input.chrom} -bg > "${{fname}}.bg"
-          bedGraphToBigWig "${{fname}}.bg" ../../../{input.chrom} "${{fname}}.bw"
-        done
-        """
-
-rule split_bmmc_fragments:
-    input: "objects/bmmc_dual.rds"
-    output: "data/bmmc_dual/bulk_fragments/me3.bed.gz"
-    message: "Splitting BMMC fragment file"
-    threads: 1
-    shell:
-        """
-        Rscript code/bmmc_dual/split.R
-        """
-        
-rule pbmc_bulk_pseudobulk_cor:
-    input:
-        me3_sc="data/pbmc_protein/bigwig/pbmc_me3.bw",
-        ac_sc="data/pbmc_protein/bigwig/pbmc_ac.bw",
-        ac_chip="data/encode/ENCFF518PSI.bigWig",
-        me3_chip="data/encode/ENCFF598EGZ.bigWig",
+        pbmc_protein_me3="data/pbmc_protein/bigwig/pbmc_me3.bed.gz",
+        pbmc_protein_ac="data/pbmc_protein/bigwig/pbmc_ac.bed.gz",
+        pbmc_bulk_me3="data/pbmc_bulk/mapped/mono/me3.bed.gz",
+        pbmc_bulk_ac="data/pbmc_bulk/mapped/mono/ac.bed.gz",
+        bmmc_me3="data/bmmc_dual/bulk_fragments/me3.bed.gz",
+        bmmc_ac="data/bmmc_dual/bulk_fragments/ac.bed.gz",
         ac_peaks="data/encode/ENCFF832RWT.bed.gz",
-        me3_peaks="data/encode/ENCFF291LVP.bed.gz",
-        me3_bulk_mono="data/pbmc_bulk/mapped/mono/me3.bw",
-        me3_bulk_plex="data/pbmc_bulk/mapped/plex/me3.bw",
-        ac_bulk_mono="data/pbmc_bulk/mapped/mono/ac.bw",
-        ac_bulk_plex="data/pbmc_bulk/mapped/plex/ac.bw",
-        all_peaks="data/encode/all_bulk.bed",
-        ctp_ac_bw="data/ct_pro/H3K27ac.bw",
-        ctp_me3_bw="data/ct_pro/H3K27me3.bw"
-    output: "data/pbmc_bulk/encode_cor.tsv"
-    threads: 6
+        me3_peaks="data/encode/ENCFF291LVP.bed.gz"
+    output: "plots/pbmc/scatterplot_pbmc.png", "plots/bmmc/scatterplot_bmmc.png"
+    threads: 1
     shell:
         """
-        multiBigwigSummary BED-file -b \
-          {input.me3_sc} \
-          {input.ac_sc} \
-          {input.me3_bulk_mono} \
-          {input.me3_bulk_plex} \
-          {input.ac_bulk_mono} \
-          {input.ac_bulk_plex} \
-          {input.me3_chip} \
-          {input.ac_chip} \
-          {input.ctp_ac_bw} \
-          {input.ctp_me3_bw} \
-          --BED {input.all_peaks} \
-          -p {threads} \
-          --outRawCounts {output} \
-          -o data/pbmc_bulk/cor_matrix_all.npz
+        Rscript code/pbmc_protein/scatterplots.R {input.ac_peaks} {input.me3_peaks}
         """
 
-rule pbmc_encode_cor:
+rule pbmc_sc_scatter:
     input:
-        sc="data/pbmc_protein/bigwig/B_cell_ac.bw",
-        encode="data/encode/ENCFF842JLZ.bigWig",
-        me3="data/encode/h3k27me3.bed",
-        ac="data/encode/h3k27ac.bed"
-    output: "data/pbmc_protein/bigwig/raw_ac.tsv", "data/pbmc_protein/bigwig/raw_me3.tsv", "data/pbmc_protein/bigwig/raw.tsv"
-    message: "Computing ENCODE/NTT correlations"
-    threads: 6
+        pbmc_sc_me3="data/pbmc_sc/ntt/pbmc_me3.bed.gz",
+        pbmc_sc_ac="data/pbmc_sc/ntt/pbmc_ac.bed.gz",
+        pbmc_bulk_me3="data/pbmc_bulk/mapped/mono/me3.bed.gz",
+        pbmc_bulk_ac="data/pbmc_bulk/mapped/mono/ac.bed.gz",
+        ac_peaks="data/encode/ENCFF832RWT.bed.gz",
+        me3_peaks="data/encode/ENCFF291LVP.bed.gz"
+    output: "plots/pbmc/scatterplot_pbmc_sc_ac_me3.png", "plots/pbmc/scatterplot_pbmc_sc_ac_ac.png"
+    threads: 1
     shell:
         """
-        # ac cor
-        multiBigwigSummary BED-file -b \
-          data/pbmc_protein/bigwig/B_cell_ac.bw \
-          data/pbmc_protein/bigwig/NK_ac.bw \
-          data/pbmc_protein/bigwig/CD14_Mono_ac.bw \
-          data/pbmc_protein/bigwig/CD8_T_cell_ac.bw \
-          data/pbmc_protein/bigwig/CD4_T_cell_ac.bw \
-          data/pbmc_protein/bigwig/HSC_ac.bw \
-          data/encode/ENCFF293ETP.bigWig \
-          data/encode/ENCFF611GRL.bigWig \
-          data/encode/ENCFF181OXO.bigWig \
-          data/encode/ENCFF526VJO.bigWig \
-          data/encode/ENCFF601NLG.bigWig \
-          data/encode/ENCFF951ZBV.bigWig \
-          data/encode/ENCFF064JOI.bigWig \
-          --BED {input.ac} \
-          -p {threads} \
-          --outRawCounts data/pbmc_protein/bigwig/raw_ac.tsv \
-          -o data/pbmc_protein/bigwig/cor_matrix_ac.npz
-        
-        # me3 cor
-        multiBigwigSummary BED-file -b \
-          data/pbmc_protein/bigwig/B_cell_me3.bw \
-          data/pbmc_protein/bigwig/NK_me3.bw \
-          data/pbmc_protein/bigwig/CD14_Mono_me3.bw \
-          data/pbmc_protein/bigwig/CD8_T_cell_me3.bw \
-          data/pbmc_protein/bigwig/CD4_T_cell_me3.bw \
-          data/pbmc_protein/bigwig/HSC_me3.bw \
-          data/encode/ENCFF569IPX.bigWig \
-          data/encode/ENCFF842JLZ.bigWig \
-          data/encode/ENCFF811VAX.bigWig \
-          data/encode/ENCFF499VWN.bigWig \
-          data/encode/ENCFF777EGG.bigWig \
-          data/encode/ENCFF046VLL.bigWig \
-          data/encode/ENCFF085YMB.bigWig \
-          --BED {input.me3} \
-          -p {threads} \
-          --outRawCounts data/pbmc_protein/bigwig/raw_me3.tsv \
-          -o data/pbmc_protein/bigwig/cor_matrix_me3.npz
-        
-        # all cor
-        multiBigwigSummary BED-file -b \
-          data/pbmc_protein/bigwig/B_cell_me3.bw \
-          data/pbmc_protein/bigwig/NK_me3.bw \
-          data/pbmc_protein/bigwig/CD14_Mono_me3.bw \
-          data/pbmc_protein/bigwig/CD8_T_cell_me3.bw \
-          data/pbmc_protein/bigwig/CD4_T_cell_me3.bw \
-          data/pbmc_protein/bigwig/HSC_me3.bw \
-          data/pbmc_protein/bigwig/B_cell_ac.bw \
-          data/pbmc_protein/bigwig/NK_ac.bw \
-          data/pbmc_protein/bigwig/CD14_Mono_ac.bw \
-          data/pbmc_protein/bigwig/CD8_T_cell_ac.bw \
-          data/pbmc_protein/bigwig/CD4_T_cell_ac.bw \
-          data/pbmc_protein/bigwig/HSC_ac.bw \
-          data/encode/ENCFF569IPX.bigWig \
-          data/encode/ENCFF842JLZ.bigWig \
-          data/encode/ENCFF811VAX.bigWig \
-          data/encode/ENCFF499VWN.bigWig \
-          data/encode/ENCFF777EGG.bigWig \
-          data/encode/ENCFF046VLL.bigWig \
-          data/encode/ENCFF085YMB.bigWig \
-          data/encode/ENCFF293ETP.bigWig \
-          data/encode/ENCFF611GRL.bigWig \
-          data/encode/ENCFF181OXO.bigWig \
-          data/encode/ENCFF526VJO.bigWig \
-          data/encode/ENCFF601NLG.bigWig \
-          data/encode/ENCFF951ZBV.bigWig \
-          data/encode/ENCFF064JOI.bigWig \
-          --BED data/encode/all.bed \
-          -p {threads} \
-          --outRawCounts data/pbmc_protein/bigwig/raw.tsv \
-          -o data/pbmc_protein/bigwig/cor_matrix_all.npz
+        Rscript code/pbmc_sc/scatterplots_sc.R {input.ac_peaks} {input.me3_peaks}
         """
 
 rule process_bmmc_dual:
@@ -915,6 +1135,7 @@ rule bmmc_pseudotime:
         "plots/bmmc/trajectory.png",
         "plots/bmmc/rna_repressed.pdf",
         "plots/bmmc/rna_activated.pdf"
+    threads: 12
     shell:
         """
         Rscript code/bmmc_dual/trajectory.R
@@ -939,15 +1160,15 @@ rule analyze_bmmc_dual:
 rule analyse_pbmc:
     input: 
         ntt="objects/pbmc_protein.rds",
-        atac="objects/pbmc_atac.rds",
         ct_ac="data/ct_pro/H3K27ac_updated.rds",
-        ct_me3="data/ct_pro/H3K27me3_updated.rds"
+        ct_me3="data/ct_pro/H3K27me3_updated.rds",
+        ntt_2="data/pbmc_sc.rds"
     output: "plots/pbmc/fragments.png"
     message: "Processing PBMC"
     threads: 1
     shell:
         """
-        Rscript code/pbmc_protein/analysis.R {input.ntt} {input.atac} {input.ct_ac} {input.ct_me3}
+        Rscript code/pbmc_protein/analysis.R {input.ntt} {input.ct_ac} {input.ct_me3} {input.ntt_2}
         """
 
 rule pbmc_bulk:
