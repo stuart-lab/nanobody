@@ -4,7 +4,7 @@ channels:
     - bioconda
 dependencies:
     - snakemake
-    - r-signac
+    - r-signac>=1.7.0
     - r-seurat
     - r-hdf5r
     - r-ggtern
@@ -15,7 +15,6 @@ dependencies:
     - pysam
     - sinto>=0.8.0
     - awscli
-    - chromap>=0.1.6
     - bwa-mem2
     - deeptools
     - bedtools
