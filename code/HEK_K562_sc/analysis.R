@@ -189,10 +189,22 @@ names(mct_counts_ac) <- total_ac_mct$CB
 mct_counts_ac[total_ac_mixed_mct$CB] <- mct_counts_ac[total_ac_mixed_mct$CB] + total_ac_mixed_mct$frequency_count
 mct_counts_ac[total_me3_mixed_mct$CB] <- mct_counts_ac[total_me3_mixed_mct$CB] + total_me3_mixed_mct$frequency_count
 
+# same for reads
+mct_reads_me3 <- total_me3_mct$reads_count
+names(mct_reads_me3) <- total_me3_mct$CB
+mct_reads_me3[total_me3_mixed_mct$CB] <- mct_reads_me3[total_me3_mixed_mct$CB] + total_me3_mixed_mct$reads_count
+mct_reads_me3[total_ac_mixed_mct$CB] <- mct_reads_me3[total_ac_mixed_mct$CB] + total_ac_mixed_mct$reads_count
+
+mct_reads_ac <- total_ac_mct$reads_count
+names(mct_reads_ac) <- total_ac_mct$CB
+mct_reads_ac[total_ac_mixed_mct$CB] <- mct_reads_ac[total_ac_mixed_mct$CB] + total_ac_mixed_mct$reads_count
+mct_reads_ac[total_me3_mixed_mct$CB] <- mct_reads_ac[total_me3_mixed_mct$CB] + total_me3_mixed_mct$reads_count
+
 count_df <- data.frame(count = c(mct_counts_me3, mct_counts_ac),
                        mark = c(rep("H3K27me3", length(mct_counts_me3)),
                                 rep("H3K27ac", length(mct_counts_ac))),
-                       dataset = "multiCUT&Tag"
+                       dataset = "multiCUT&Tag",
+                       reads = c(mct_reads_me3, mct_reads_ac)
                        )
 
 # ntt
@@ -217,6 +229,7 @@ df1 <- data.frame(
     mark = "H3K27me3",
     dataset = "scNTT-seq"
 )
+df1$reads <- total_me3$reads_count
 
 ac <- total_ac$frequency_count
 names(ac) <- total_ac$CB
@@ -225,6 +238,7 @@ df2 <- data.frame(
     mark = "H3K27ac",
     dataset = "scNTT-seq"
 )
+df2$reads <- total_ac$reads_count
 
 pol <- total_pol$frequency_count
 names(pol) <- total_pol$CB
@@ -233,24 +247,34 @@ df3 <- data.frame(
     mark = "RNAPII",
     dataset = "scNTT-seq"
 )
+df3$reads <- total_pol$reads_count
 
 count_df <- rbind(count_df, df1, df2, df3)
-count_df <- rbind(count_df, data.frame(count=c(1,1), mark="RNAPII", dataset="multiCUT&Tag"))
+count_df <- rbind(count_df, data.frame(count=c(1,1), mark="RNAPII", dataset="multiCUT&Tag", reads=c(1,1)))
 
 # total fragments, split by mark
-p3 <- ggplot(data = count_df, mapping = aes(mark, count, fill=dataset)) +
+p3 <- ggplot(data = count_df, mapping = aes(mark, reads, fill=dataset)) +
+  geom_boxplot(outlier.size = 0.1) +
+  scale_y_log10() +
+  theme_bw() +
+  ylab("Total reads per cell") +
+  xlab("Antibody") +
+  theme(legend.position = "none") +
+  ggtitle("Reads per cell")
+
+p4 <- ggplot(data = count_df, mapping = aes(mark, count, fill=dataset)) +
   geom_boxplot(outlier.size = 0.1) +
   scale_y_log10() +
   theme_bw() +
   ylab("Total fragments per cell") +
   xlab("Antibody") +
-  ggtitle("Sensitivity") 
+  ggtitle("Fragments per cell")
 
 ggsave(
     filename = "plots/hek_k562/sensitivity.png",
-    plot = p3,
+    plot = (p3 | p4),
     height = 4,
-    width = 5,
+    width = 7,
     dpi = 500
 )
 
