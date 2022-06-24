@@ -3,6 +3,7 @@ library(Signac)
 library(EnsDb.Hsapiens.v86)
 library(BSgenome.Hsapiens.UCSC.hg38)
 library(future)
+library(GenomicRanges)
 
 
 args <- commandArgs(trailingOnly = TRUE)
@@ -54,33 +55,34 @@ counts_me3 <- AggregateTiles(
 counts_ac <- AggregateTiles(
   object = frags_ac,
   cells = cells.keep,
-  min_counts = 1,
-  binsize = 5000,
+  min_counts = 3,
+  binsize = 1000,
   genome = genome.use
 )
 
-# combine matrices for same barcode pairs
-common.cells <- intersect(colnames(counts_me3), colnames(counts_ac))
-all.counts <- rbind(counts_me3[, common.cells], counts_ac[, common.cells])
+# remove features overlapping blacklist
+remove_blacklist <- function(counts) {
+  olap <- findOverlaps(query = StringToGRanges(rownames(counts)), subject = blacklist_hg38_unified)
+  is_bl <- queryHits(olap)
+  counts <- counts[setdiff(1:nrow(counts), is_bl), ]
+  return(counts)
+}
 
 # create seurat object
-bmmc <- CreateSeuratObject(
-  counts = all.counts,
-  min.cells = 2,
-  assay = "all"
-)
-bmmc[['me3']] <- CreateChromatinAssay(
-  counts = counts_me3[, colnames(bmmc)],
+me3 <- CreateChromatinAssay(
+  counts = remove_blacklist(counts_me3),
   fragments = fragfiles[['H3K27me3']],
-  annotation = annot,
-  min.features = -1
+  annotation = annot
 )
-bmmc[['ac']] <- CreateChromatinAssay(
-  counts = counts_ac[, colnames(bmmc)],
+
+ac <- CreateChromatinAssay(
+  counts = remove_blacklist(counts_ac),
   fragments = fragfiles[['H3K27ac']],
-  annotation = annot,
-  min.features = -1
+  annotation = annot
 )
+
+bmmc <- CreateSeuratObject(counts = me3, assay = "me3")
+bmmc[['ac']] <- ac
 
 bmmc <- subset(bmmc, subset = nCount_me3 < 10000 &
                  nCount_ac < 10000 &
@@ -97,48 +99,55 @@ bmmc$nucleosome.me3 <- bmmc$nucleosome_signal
 bmmc <- NucleosomeSignal(bmmc, assay = "ac")
 bmmc$nucleosome.ac <- bmmc$nucleosome_signal
 
+bmmc <- subset(bmmc, subset = tss.ac > 1)
+
 DefaultAssay(bmmc) <- "me3"
+feat.keep <- names(which(rowSums(bmmc, slot = 'counts') > 1)) # remove low-count features
+bmmc[['me3']] <- subset(bmmc[['me3']], features = feat.keep)
 bmmc <- FindTopFeatures(bmmc)
 bmmc <- RunTFIDF(bmmc, scale.factor = median(bmmc$nCount_me3))
-bmmc <- RunSVD(bmmc, reduction.name = "lsi.me3", scale.embeddings = FALSE)
-bmmc <- RunUMAP(bmmc, reduction = "lsi.me3", reduction.name = "umap.me3", dims = 2:50)
+bmmc <- RunSVD(bmmc, reduction.name = "lsi.me3", n = 100, scale.embeddings = FALSE)
+bmmc <- RunUMAP(bmmc, reduction = "lsi.me3", reduction.name = "umap.me3", dims = 2:100)
 
 DefaultAssay(bmmc) <- "ac"
+feat.keep <- names(which(rowSums(bmmc, slot = 'counts') > 1))
+bmmc[['ac']] <- subset(bmmc[['ac']], features = feat.keep)
 bmmc <- FindTopFeatures(bmmc)
 bmmc <- RunTFIDF(bmmc, scale.factor = median(bmmc$nCount_ac))
 bmmc <- RunSVD(bmmc, reduction.name = "lsi.ac", n = 100, scale.embeddings = FALSE)
-bmmc <- RunUMAP(bmmc, reduction = "lsi.ac", reduction.name = "umap.ac", dims = 2:80)
+bmmc <- RunUMAP(bmmc, reduction = "lsi.ac", reduction.name = "umap.ac", dims = 2:60)
 
 bmmc <- FindMultiModalNeighbors(
   object = bmmc,
   reduction.list = list("lsi.me3", "lsi.ac"),
-  dims.list = list(2:50, 2:80)
+  dims.list = list(2:100, 2:60)
 )
 bmmc <- RunUMAP(bmmc, nn.name = "weighted.nn", reduction.name = "umap.wnn")
-bmmc <- FindClusters(bmmc, graph.name = "wsnn", algorithm = 3, resolution = 3)
+bmmc <- FindClusters(bmmc, graph.name = "wsnn", algorithm = 3, resolution = 4)
 
 renaming <- list(
-  '0' = "CD14 Mono",
-  '1' = "GMP/CLP",
-  '2' = "NK",
-  '3' = 'NK',
-  '4' = 'CD8 Memory',
-  '5' = 'CD4 Naive',
-  '6' = 'CD14 Mono',
-  '7' = 'pDC',
+  '0' = "NK",
+  '1' = "NK",
+  '2' = "GMP/CLP",
+  '3' = 'CD8 Naive',
+  '4' = 'CD4 Naive',
+  '5' = 'CD14 Mono',
+  '6' = 'pDC',
+  '7' = 'B',
   '8' = 'CD4 Memory',
-  '9' = 'B',
-  '10' = 'CD8 Naive',
-  '11' = 'CD8 Memory',
-  '12' = 'Late erythroid',
-  '13' = 'Pre-B',
+  '9' = 'CD8 Memory',
+  '10' = 'CD14 Mono',
+  '11' = 'Pre-B',
+  '12' = 'CD8 Memory',
+  '13' = 'Late erythroid',
   '14' = 'Early erythroid',
   '15' = 'CD14 Mono',
-  '16' = 'HSPC',
-  '17' = 'B',
-  '18' = 'Plasma',
+  '16' = 'B',
+  '17' = 'HSPC',
+  '18' = 'CD14 Mono',
   '19' = 'CD14 Mono',
-  '20' = 'Early basophil'
+  '20' = 'Plasma',
+  '21' = 'Early basophil'
 )
 Idents(bmmc) <- "seurat_clusters"
 bmmc <- RenameIdents(bmmc, renaming)
