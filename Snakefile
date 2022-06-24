@@ -592,7 +592,7 @@ rule process_henikoff:
         "data/henikoff/GSM5034343_K27me3_R2_PBMC.fragments.HG38.tsv.gz",
         "data/henikoff/GSM5034344_K27ac_PBMC.fragments.HG38.tsv.gz",
         "objects/pbmc_protein.rds"
-    output: "objects/henikoff/ac.rds", "objects/henikoff/me3.rds"
+    output: "objects/henikoff/ac_filt.rds", "objects/henikoff/me3_filt.rds"
     threads: 1
     message: "Processing Henikoff PBMC datasets"
     shell:
@@ -1016,8 +1016,8 @@ rule pbmc_sc_frip:
         "objects/pbmc_sc.rds",
         "data/ct_pro/H3K27ac_updated.rds",
         "data/ct_pro/H3K27me3_updated.rds",
-        "objects/henikoff/me3.rds",
-        "objects/henikoff/ac.rds",
+        "objects/henikoff/me3_filt.rds",
+        "objects/henikoff/ac_filt.rds",
         "data/encode/ENCFF832RWT.bed.gz",
         "data/encode/ENCFF291LVP.bed.gz"
     output: "plots/pbmc/frip_pbmc.png"
