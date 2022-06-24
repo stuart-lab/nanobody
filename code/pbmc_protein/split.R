@@ -2,11 +2,10 @@ library(Signac)
 library(Seurat)
 
 obj <- readRDS("objects/pbmc_protein.rds")
+Idents(obj) <- "celltype"
 
 outdir <- "data/pbmc_protein/bigwig/"
-celltypes.split <- c("CD14+ Mono", "B cell", "NK", "CD8+ T cell", "CD4+ T cell", "HSC")
-
-Idents(obj) <- "celltype"
+celltypes.split <- levels(obj)
 
 # split fragments for each assay
 DefaultAssay(obj) <- "ac"

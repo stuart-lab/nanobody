@@ -23,7 +23,7 @@ p3 <- DimPlot(bmmc, reduction = "umap.wnn", group.by = "celltype", label = TRUE,
   ylab('UMAP 2') + xlab("UMAP 1")
 
 pp <- ((p1 / p2) | p3) + plot_layout(widths = c(1, 2))
-ggsave(filename = "plots/bmmc/dimplots_bmmc.png", plot = pp, height = 5, width = 7)
+ggsave(filename = "plots/bmmc/dimplots_bmmc.png", plot = pp, height = 6, width = 8)
 
 # fragment counts
 fm <- CountFragments(
@@ -36,8 +36,10 @@ fa <- CountFragments(
   cells = colnames(bmmc)
 )
 
-mean(fm$frequency_count)
-mean(fa$frequency_count)
+mean(fm$frequency_count) # 1217
+mean(fa$frequency_count) # 326
+sd(fm$frequency_count)  # 1274
+sd(fa$frequency_count)  # 334
 
 # create plot
 fm$mark <- "H3K27me3"
@@ -45,7 +47,7 @@ fa$mark <- "H3K27ac"
 all_counts <- rbind(fm, fa)
 
 p0 <- ggplot(all_counts, aes(mark, frequency_count, fill = mark)) +
-  geom_violin() +
+  geom_violin(size = 0.2) +
   scale_y_log10() +
   theme_bw() + 
   ylab("Fragments") +

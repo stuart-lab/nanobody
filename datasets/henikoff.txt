@@ -1,0 +1,3 @@
+https://ftp.ncbi.nlm.nih.gov/geo/samples/GSM5034nnn/GSM5034342/suppl/GSM5034342_K27me3_R1_PBMC.fragments.HG38.tsv.gz
+https://ftp.ncbi.nlm.nih.gov/geo/samples/GSM5034nnn/GSM5034343/suppl/GSM5034343_K27me3_R2_PBMC.fragments.HG38.tsv.gz
+https://ftp.ncbi.nlm.nih.gov/geo/samples/GSM5034nnn/GSM5034344/suppl/GSM5034344_K27ac_PBMC.fragments.HG38.tsv.gz

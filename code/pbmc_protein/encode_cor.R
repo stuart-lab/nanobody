@@ -40,14 +40,14 @@ process_matrix <- function(mat, encode, method = "pearson") {
                "CD14_Mono_me3", "CD14_mono_H3K27me3_chip",
                "CD8_T_cell_me3", "CD8_H3K27me3_chip",
                "CD4_T_cell_me3", "CD4_H3K27me3_chip",
-               "HSC_me3", "CMP_CD34_H3K27me3_chip")]
+               "Late_erythroid_me3", "CMP_CD34_H3K27me3_chip")]
     } else {
         mat <- mat[, c("B_cell_ac", "B_cell_H3K27ac_chip",
                "NK_ac", "NK_H3K27ac_chip",
                "CD14_Mono_ac", "CD14_mono_H3K27ac_chip",
                "CD8_T_cell_ac", "CD8_H3K27ac_chip",
                "CD4_T_cell_ac", "CD4_H3K27ac_chip",
-               "HSC_ac", "CMP_CD34_H3K27ac_chip")]
+               "Late_erythroid_ac", "CMP_CD34_H3K27ac_chip")]
     }
     all_cor <- cor(mat, method = method)
     ac <- reshape2::melt(all_cor)
@@ -60,13 +60,13 @@ process_matrix <- function(mat, encode, method = "pearson") {
 me3 <- process_matrix(mat=mat_me3, encode=encode, method = "spearman")
 ac <- process_matrix(mat=mat_ac, encode=encode, method = "spearman")
 
-cells_keep <- c("CD14_Mono_me3", "HSC_me3", "B_cell_me3")
+cells_keep <- c("CD14_Mono_me3", "Late_erythroid_me3", "B_cell_me3")
 encode_keep <- c("B_cell_H3K27me3_chip", "CD14_mono_H3K27me3_chip", "CMP_CD34_H3K27me3_chip")
 
 me3 <- me3[me3$Var2 %in% cells_keep, ]
 me3 <- me3[me3$Var1 %in% encode_keep, ]
 
-cells_keep <- c("CD14_Mono_ac", "HSC_ac", "B_cell_ac")
+cells_keep <- c("CD14_Mono_ac", "Late_erythroid_ac", "B_cell_ac")
 encode_keep <- c("B_cell_H3K27ac_chip", "CD14_mono_H3K27ac_chip", "CMP_CD34_H3K27ac_chip")
 
 ac <- ac[ac$Var2 %in% cells_keep, ]
@@ -78,7 +78,7 @@ replacement_encode <- list("B_cell_H3K27ac_chip" = "B cell",
 
 replacement_sc <- list("B_cell_ac" = "B cell",
                        "CD14_Mono_ac" = "CD14 Monocyte",
-                       "HSC_ac" = "HSC")
+                       "Late_erythroid_ac" = "Late_erythroid")
 
 ac$Var1 <- as.character(replacement_encode[as.character(ac$Var1)])
 ac$Var2 <- as.character(replacement_sc[as.character(ac$Var2)])
@@ -89,7 +89,7 @@ replacement_encode <- list("B_cell_H3K27me3_chip" = "B cell",
 
 replacement_sc <- list("B_cell_me3" = "B cell",
                        "CD14_Mono_me3" = "CD14 Monocyte",
-                       "HSC_me3" = "HSC")
+                       "Late_erythroid_me3" = "Late_erythroid")
 
 me3$Var1 <- as.character(replacement_encode[as.character(me3$Var1)])
 me3$Var2 <- as.character(replacement_sc[as.character(me3$Var2)])
@@ -116,3 +116,33 @@ p2 <- ggplot(ac, aes(Var1, Var2, fill = `Pearson correlation`)) +
 pp <- (p1 / p2)
 
 ggsave(filename = "plots/pbmc/encode_cor_spearman.png", plot = pp, height = 6, width = 5)
+
+# correlation between replicates
+mat <- read.table("data/pbmc_protein/replicate_cor.tsv", sep = "\t", header = TRUE, comment.char = "")
+mat <- mat[, 4:ncol(mat)] # remove region
+mat <- as.matrix(mat)
+mat[is.nan(mat)] <- 0
+mat <- as.data.frame(mat)
+
+colnames(mat) <- c(
+  "Rep. 1 H3K27me3",
+  "Rep. 1 H3K27ac",
+  "Rep. 2 H3K27me3",
+  "Rep. 2 H3K27ac"
+)
+
+mat <- mat[, c("Rep. 1 H3K27me3", "Rep. 2 H3K27me3", "Rep. 1 H3K27ac", "Rep. 2 H3K27ac")]
+
+all_cor <- cor(mat, method = "pearson")
+ac <- reshape2::melt(all_cor)
+ac$`Pearson correlation` <- ac$value
+
+p1 <- ggplot(ac, aes(Var1, Var2, fill = `Pearson correlation`)) +
+  geom_tile() +
+  theme_classic() +
+  scale_fill_distiller(palette = "RdBu") +
+  scale_x_discrete(guide = guide_axis(angle = 45)) +
+  xlab("") +
+  ylab("")
+
+ggsave("plots/pbmc/replicate_correlation.png", plot = p1, height = 3, width = 5)

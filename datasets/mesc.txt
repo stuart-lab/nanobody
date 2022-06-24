@@ -1,0 +1,2 @@
+https://www.encodeproject.org/files/ENCFF008XKX/@@download/ENCFF008XKX.bed.gz#H3K27me3 ES-Bruce4 mm10
+https://www.encodeproject.org/files/ENCFF360VIS/@@download/ENCFF360VIS.bed.gz#H3K27ac ES-Bruce4 mm10

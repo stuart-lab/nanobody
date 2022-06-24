@@ -6,23 +6,39 @@ library(ggplot2)
 library(patchwork)
 
 
+args <- commandArgs(trailingOnly = TRUE)
+ac_peaks <- args[[1]]
+me3_peaks <- args[[2]]
+
 colormap <- list("H3K27me3" = "#D3145A", "H3K27ac" = "#F98401", "RNAPII" = "#036C9A")
 
-regions_me3 <- read.table("data/pbmc_bulk/mapped/me3_peaks.broadPeak", sep = "\t",
-                          col.names = c("chromosome", "start", "end", "name", "score",
-                                        "strand", "a", "b" , "c"))
-regions_me3 <- makeGRangesFromDataFrame(regions_me3, keep.extra.columns = TRUE)
-regions_me3$peak <- "H3K27me3"
-regions_me3 <- keepStandardChromosomes(regions_me3, pruning.mode = "coarse")
-regions_me3 <- dropSeqlevels(regions_me3, value = "chrM", pruning.mode = "coarse")
-
-regions_ac <- read.table("data/pbmc_bulk/mapped/ac_peaks.narrowPeak", sep = "\t",
-                          col.names = c("chromosome", "start", "end", "name", "score",
-                                        "strand", "a", "b" , "c", "d"))
+regions_ac <- read.table(ac_peaks, sep = "\t",
+                         col.names = c("chromosome", "start", "end", "name", "score",
+                                       "strand", "a", "b" , "c", "d"))
 regions_ac <- makeGRangesFromDataFrame(regions_ac, keep.extra.columns = TRUE)
 regions_ac$peak <- "H3K27ac"
-regions_ac <- keepStandardChromosomes(regions_ac, pruning.mode = "coarse")
-regions_ac <- dropSeqlevels(regions_ac, value = "chrM", pruning.mode = "coarse")
+
+regions_me3 <- read.table(me3_peaks, sep = "\t",
+                          col.names = c("chromosome", "start", "end", "name", "score",
+                                        "strand", "a", "b" , "c", "d"))
+regions_me3 <- makeGRangesFromDataFrame(regions_me3, keep.extra.columns = TRUE)
+regions_me3$peak <- "H3K27me3"
+
+# regions_me3 <- read.table("data/pbmc_bulk/mapped/me3_peaks.broadPeak", sep = "\t",
+#                           col.names = c("chromosome", "start", "end", "name", "score",
+#                                         "strand", "a", "b" , "c"))
+# regions_me3 <- makeGRangesFromDataFrame(regions_me3, keep.extra.columns = TRUE)
+# regions_me3$peak <- "H3K27me3"
+# regions_me3 <- keepStandardChromosomes(regions_me3, pruning.mode = "coarse")
+# regions_me3 <- dropSeqlevels(regions_me3, value = "chrM", pruning.mode = "coarse")
+# 
+# regions_ac <- read.table("data/pbmc_bulk/mapped/ac_peaks.narrowPeak", sep = "\t",
+#                           col.names = c("chromosome", "start", "end", "name", "score",
+#                                         "strand", "a", "b" , "c", "d"))
+# regions_ac <- makeGRangesFromDataFrame(regions_ac, keep.extra.columns = TRUE)
+# regions_ac$peak <- "H3K27ac"
+# regions_ac <- keepStandardChromosomes(regions_ac, pruning.mode = "coarse")
+# regions_ac <- dropSeqlevels(regions_ac, value = "chrM", pruning.mode = "coarse")
 
 regions <- c(regions_me3, regions_ac)
 

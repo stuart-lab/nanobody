@@ -7,9 +7,9 @@ library(dplyr)
 
 args <- commandArgs(trailingOnly = TRUE)
 ntt <- readRDS(args[[1]])
-atac <- readRDS(args[[2]])
-ct_ac <- readRDS(args[[3]])
-ct_me <- readRDS(args[[4]])
+ct_ac <- readRDS(args[[2]])
+ct_me <- readRDS(args[[3]])
+pbmc_sc <- readRDS(args[[4]])
 
 colormap <- list("H3K27me3" = "#D3145A", "H3K27ac" = "#F98401", "RNAPII" = "#036C9A")
 mixed <- list("mp"= "#6b407a", "ma" = "#e64c2e", "ap" = "#7e784e", "all" = "#9a5752")
@@ -31,20 +31,104 @@ tot_ac$mark <- "H3K27ac"
 
 all_counts <- rbind(tot_me3, tot_ac)
 
-mean(tot_me3$frequency_count)
-mean(tot_ac$frequency_count)
+mean(tot_me3$frequency_count) # 2854
+mean(tot_ac$frequency_count) # 412
+sd(tot_me3$frequency_count) # 2953
+sd(tot_ac$frequency_count) # 356
 
-p0 <- ggplot(all_counts, aes(mark, frequency_count, fill = mark)) +
-  geom_violin() +
+# pbmc replicate
+me3_frag_2 <- Fragments(pbmc_sc[['me3']])[[1]]@path
+ac_frag_2 <- Fragments(pbmc_sc[['ac']])[[1]]@path
+
+tot_me3_2 <- CountFragments(
+  fragments = me3_frag_2,
+  cells = colnames(pbmc_sc)
+)
+tot_me3_2$mark <- "H3K27me3"
+tot_ac_2 <- CountFragments(
+  fragments = ac_frag_2,
+  cells = colnames(pbmc_sc)
+)
+tot_ac_2$mark <- "H3K27ac"
+
+all_counts_2 <- rbind(tot_me3_2, tot_ac_2)
+
+mean(tot_me3_2$frequency_count) # 670
+mean(tot_ac_2$frequency_count) # 731
+sd(tot_me3_2$frequency_count) # 1243
+sd(tot_ac_2$frequency_count) # 1035
+
+all_counts$dataset <- "scNTT-seq"
+all_counts_2$dataset <- "scNTT-seq"
+
+# ct henikoff
+me3_frag_ct <- Fragments(ct_me[['tiles']])[[1]]@path
+ac_frag_ct <- Fragments(ct_ac[["tiles"]])[[1]]@path
+
+tot_me3_ct <- CountFragments(
+  fragments = me3_frag_ct,
+  cells = colnames(ct_me)
+)
+tot_me3_ct$mark <- "H3K27me3"
+tot_ac_ct <- CountFragments(
+  fragments = ac_frag_ct,
+  cells = colnames(ct_ac)
+)
+tot_ac_ct$mark <- "H3K27ac"
+
+all_counts_ct <- rbind(tot_me3_ct, tot_ac_ct)
+
+mean(tot_me3_ct$frequency_count) # 519
+mean(tot_ac_ct$frequency_count) # 283
+sd(tot_me3_ct$frequency_count) # 383
+sd(tot_ac_ct$frequency_count) # 272
+
+all_counts_ct$dataset <- "scCUT&Tag"
+
+all_counts <- rbind(all_counts, all_counts_ct)
+
+p0 <- ggplot(all_counts, aes(mark, frequency_count, fill = dataset)) +
+  geom_violin(size = 0.2) +
   scale_y_log10() +
   theme_bw() + 
   ylab("Fragments") +
   xlab("Mark") +
-  ggtitle("Total fragments") +
-  theme(legend.position = "none") +
-  scale_fill_manual(values = c(colormap$H3K27ac, colormap$H3K27me3))
-  
-ggsave(filename = "plots/pbmc/fragments.png", plot = p0, height = 4, width = 4)
+  ggtitle("Total fragments per cell")
+
+p01 <- ggplot(all_counts, aes(mark, reads_count, fill = dataset)) +
+  geom_violin(size = 0.2) +
+  scale_y_log10() +
+  theme_bw() + 
+  ylab("Reads") +
+  xlab("Mark") +
+  ggtitle("Total reads per cell") +
+  theme(legend.position = "none")
+
+ggsave(filename = "plots/pbmc/fragments.png", plot = p01 | p0, height = 4, width = 7)
+
+# replicate 2
+p0 <- ggplot(all_counts_2, aes(mark, frequency_count, fill = mark)) +
+  geom_violin(size = 0.2) +
+  scale_y_log10() +
+  theme_bw() + 
+  scale_fill_manual(values = colormap[1:2]) +
+  ylab("Fragments") +
+  xlab("Mark") +
+  ggtitle("Total fragments per cell") +
+  theme(legend.position = "none")
+
+p01 <- ggplot(all_counts_2, aes(mark, reads_count, fill = mark)) +
+  geom_violin(size = 0.2) +
+  scale_y_log10() +
+  theme_bw() + 
+  scale_fill_manual(values = colormap[1:2]) +
+  ylab("Reads") +
+  xlab("Mark") +
+  ggtitle("Total reads per cell") +
+  theme(legend.position = "none")
+
+ggsave(filename = "plots/pbmc/fragments_rep2.png", plot = p01 | p0, height = 4, width = 7)
+
 
 t1 <- TSSPlot(ntt, assay = "me3", group.by = "orig.ident") +
   ggtitle("H3K27me3") + scale_color_manual(values = colormap$H3K27me3)
@@ -69,6 +153,8 @@ ggsave(filename = "plots/pbmc/wnn_weight.png", plot = v1, height = 8, width = 12
 df <- ntt[[]]
 df$dataset <- "scNTT-seq"
 df <- df[, c("nCount_ADT", "dataset")]
+mean(df$nCount_ADT) # 690
+sd(df$nCount_ADT)   # 613
 
 df2 <- ct_me[[]]
 df2$dataset <- "CUT&Tag-pro (H3K27me3)"
@@ -81,21 +167,23 @@ df3 <- df3[, c("nCount_ADT", "dataset")]
 df <- rbind(df, df2, df3)
 
 v2 <- ggplot(data = df, aes(dataset, nCount_ADT, fill = dataset)) +
-  geom_violin() +
+  geom_violin(size = 0.2) +
   scale_y_log10() +
   theme_bw() +
   theme(axis.title.x=element_blank(),
-        axis.text.x=element_blank(),
-        axis.ticks.x=element_blank())
+        axis.text.x = element_text(angle = 45, vjust = 1, hjust=1),
+        legend.position = 'none') +
+  ggtitle("ADT counts per cell")
 
-ggsave(filename = "plots/pbmc/ncount_adt.png", plot = v2, height = 4, width = 6)
+ggsave(filename = "plots/pbmc/ncount_adt.png", plot = v2, height = 4, width = 2.5)
 
 # featureplots adt
 DefaultAssay(ntt) <- "ADT"
 fp <- FeaturePlot(
   ntt,
-  c("CD14", "CD19", "CD4", "CD8A", "CD3D", "IL2RB"),
+  c("CD14", "CD19", "CD4", "CD8A", "IL2RB", "TFRC"),
   pt.size = 0.1,
+  max.cutoff = 'q99',
   cols = c("lightgrey", "darkgreen"),
   ncol = 3,
   reduction = 'umap.wnn'
