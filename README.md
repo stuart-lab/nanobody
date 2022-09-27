@@ -3,6 +3,8 @@
 This repository contains code needed to reproduce the analyses shown in
 [Stuart et al. (2022), *bioRxiv*](https://doi.org/10.1101/2022.03.08.483436)
 
+More information about NTT-seq can be found at the [NTT-seq website](https://ntt-seq.com)
+
 ![](img/ntt.png)
 
 ## Installing dependencies
