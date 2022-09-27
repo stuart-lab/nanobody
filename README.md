@@ -54,9 +54,10 @@ documentation for a complete list of available options.
 
 Processed datasets from this study are available from:
 
-* GEO: []()  
-* SRA: []()  
-* dbGaP: []()
+* GEO: [GSE212588](https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE212588)  
+* SRA: [SRP395379](https://www.ncbi.nlm.nih.gov/sra/?term=SRP395379)  
+* Zenodo: [7102159](https://zenodo.org/record/7102159)  
+* dbGaP: []()  
 
 ## Plasmid availability
 
