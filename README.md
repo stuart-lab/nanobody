@@ -1,4 +1,4 @@
-# <ins>N</ins>anobody-<ins>t</ins>ethered <ins>t</ins>agmentation followed by sequencing (NTT-seq)
+# <ins>N</ins>anobody-<ins>t</ins>ethered <ins>t</ins>ransposition followed by sequencing (NTT-seq)
 
 This repository contains code needed to reproduce the analyses shown in
 [Stuart et al. (2022), *bioRxiv*](https://doi.org/10.1101/2022.03.08.483436)
