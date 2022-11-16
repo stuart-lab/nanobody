@@ -59,7 +59,7 @@ Processed datasets from this study are available from:
 * GEO: [GSE212588](https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE212588)  
 * SRA: [SRP395379](https://www.ncbi.nlm.nih.gov/sra/?term=SRP395379)  
 * Zenodo: [7102159](https://zenodo.org/record/7102159)  
-* dbGaP: []()  
+* dbGaP: [phs003068.v1.p1](https://www.ncbi.nlm.nih.gov/projects/gap/cgi-bin/study.cgi?study_id=phs003068.v1.p1)  
 
 ## Plasmid availability
 
