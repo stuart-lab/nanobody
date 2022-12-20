@@ -1,7 +1,7 @@
 # <ins>N</ins>anobody-<ins>t</ins>ethered <ins>t</ins>ransposition followed by sequencing (NTT-seq)
 
 This repository contains code needed to reproduce the analyses shown in
-[Stuart et al. (2022), *bioRxiv*](https://doi.org/10.1101/2022.03.08.483436)
+[Stuart et al. (2022), *Nature Biotechnology*](https://doi.org/10.1038/s41587-022-01588-5)
 
 More information about NTT-seq can be found at the [NTT-seq website](https://ntt-seq.com)
 
@@ -73,17 +73,16 @@ Plasmids generated from this study are available from [AddGene](https://www.addg
 ## Citation
 
 ```
-@UNPUBLISHED{Stuart2022,
-  title    = "Nanobody-tethered transposition allows for multifactorial
-              chromatin profiling at single-cell resolution",
+@ARTICLE{Stuart2022,
+  title    = "Nanobody-tethered transposition enables multifactorial chromatin
+              profiling at single-cell resolution",
   author   = "Stuart, Tim and Hao, Stephanie and Zhang, Bingjie and
-              Mekerishvili, Levan and Landau, Dan and Maniatis, Silas and
+              Mekerishvili, Levan and Landau, Dan A and Maniatis, Silas and
               Satija, Rahul and Raimondi, Ivan",
-  journal  = "bioRxiv",
-  pages    = "2022.03.08.483436",
-  month    =  mar,
+  journal  = "Nat. Biotechnol.",
+  month    =  dec,
   year     =  2022,
-  url      = "https://www.biorxiv.org/content/10.1101/2022.03.08.483436v1",
+  url      = "http://dx.doi.org/10.1038/s41587-022-01588-5",
   language = "en"
 }
 ```
